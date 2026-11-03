@@ -1132,6 +1132,13 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
     listener->EnqueueNotification(0x00000013, 0);
     listener->EnqueueNotification(0x00000013, 0);
   }
+  // hexichd-nx (2026-11-04): XN_XMP_PLAYBACKCONTROLLERCHANGED, the title has playback control. Hexic HD starts its music only on this
+  // (sub_9204E068, with a non-zero value); the console announces it and the SDK only sent it when a game changed the controller.
+  static bool xmp_controller_announced = false;
+  if (!xmp_controller_announced && (listener->mask() & 0x00000020)) {
+    xmp_controller_announced = true;
+    listener->EnqueueNotification(0x0A000003, 1);
+  }
 }
 
 void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
