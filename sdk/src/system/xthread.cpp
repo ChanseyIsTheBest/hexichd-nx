@@ -1525,6 +1525,11 @@ void XHostThread::Execute() {
   // Let the kernel know we are starting.
   kernel_state_->OnThreadExecute(this);
 
+  // hexichd-nx (2026-11-04, Ridge Racer 6 Recomp's SDK-NOTES.md, item 1, by Sirhalo23): XThread::Execute seeds this for guest threads
+  // and this path skipped it. The audio worker and the graphics interrupt thread run guest callbacks, and on the PC the first toggle of
+  // the flush mode then unmasked FP exceptions: 0xC000008F (float inexact) in the XAudio callback, about 4 s after the start.
+  thread_state_->context()->fpscr.InitHost();
+
   int ret = host_fn_();
 
   // Exit.
