@@ -1,0 +1,1 @@
+# hexic2-nx: machine copies by tools/switch_hot_bulk.py --merge (docs/optimising-functions.md).

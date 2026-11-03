@@ -1,0 +1,20 @@
+# hexic2-nx (2026-11-03): Renut hooks placed by hand in Hexic 2 (XDK 2.0.5426), read by tools/renut_hook_map_hexic2.py before the routes.
+# One line per hook: the address on the hook line (Beautiful Katamari's, or N&B's for a hook Katamari left unhooked), this game's address or - (leave unhooked), the evidence.
+# Signature matches read by hand (tools/renut_sigmatch.py against Katamari's function, same instruction count).
+824F3370  92120390  D3DDevice_Clear: 0.81, next 0.34, n=47 on both
+824E9428  92121198  D3DDevice_Present: 0.72, next 0.23, n=76 on both
+824EFBC8  92121438  BeginTiling (Katamari's raw hook): 0.66, next 0.31, n=353 on both
+824F0150  921219C0  EndTiling (Katamari's raw hook): 0.69, next 0.33, n=304 / 302
+824DB7B0  92116208  D3DVertexBuffer_Unlock: 1.00, n=4
+824DB8B8  92116310  D3DConstantBuffer_Unlock: 1.00, n=3
+824D4470  9211A2B0  D3DDevice_SetVertexShaderConstantB: `addi r10,r10,2496`, 32 words below Katamari's 2528 (the device's -128)
+824D44D0  9211A310  D3DDevice_SetPixelShaderConstantB: `addi r10,r10,2500`, Katamari's 2532 less 32
+826374B0  9211A370  D3DDevice_SetVertexShaderConstantI: `addi r11,r4,2504`, the integer block at 0x2720
+82637500  9211A3C8  D3DDevice_SetPixelShaderConstantI: `addi r11,r4,2520`, at 0x2760
+826370E8  92114EB0  D3DDevice_SetClipPlane: 0.90, next 0.34, n=20
+# As Katamari left them: not in this XDK's public shape, or the game's own code does the same on Renut's devices.
+824D0430  -  D3DDevice_AcquireThreadOwnership: best 0.72, not read further; Katamari's route gave none
+824D0470  -  D3DDevice_ReleaseThreadOwnership: a 4-instruction shape, no match
+8263ED90  -  D3DDevice_EndIndexedVertices: sub_92123CE8 `Ring = VerticesRingEnd`, then a kick unless Flags has 0x80: on Renut's devices, which carry 0x80, the game's code does what the hook does (Katamari's finding)
+824DC2C8  -  D3DDevice_SetRenderState_Buffer2Frames: the row XDK 2.0.5426's 100-row table does not have
+824DC2E8  -  D3DDevice_GetRenderState_Buffer2Frames: the same

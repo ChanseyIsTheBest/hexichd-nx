@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""katamari-nx (2026-10-30): writes the package's tomls from banjo-nx's shipped renut.toml (its SD package of
+2026-10-29 evening), with Beautiful Katamari's settings:
+
+  renut.toml       the shipped settings: Renut on deko3d, 720 lines handheld and 1080 docked (the user's choice; no
+                   dynamic resolution, the game's own MSAA), every exact enhancement as banjo-nx ships it, the items measured
+                   SLOWER ON THE CONSOLE off, diagnostics as banjo-nx's renut.toml (logs on);
+  renut_play.toml  renut.toml with the render-thread diagnostics off (banjo-nx's renut_play.toml difference);
+  renut_ab.toml    renut.toml with an in-run A/B list, 30 s halves, target 1 (a Vulkan-only key: does nothing on the
+                   Switch) as the control.
+  configs/*.toml   the picture-changing options, each one key away from renut.toml, for the user to decide on.
+
+  python tools/make_hexichd_tomls.py --banjo <banjo-nx renut.toml> --out dist/switch/hexichd-nx
+"""
+import argparse
+import os
+import re
+
+HEADER = """# hexic2-nx (Hexic 2 on the Switch, Renut's renderer on deko3d): {what}
+# Made by tools/make_hexichd_tomls.py from katamari-nx's shipped renut.toml (2026-11-02). Copy to
+# sdmc:/switch/hexichd-nx/hexichd.toml. Credits: reNut's renderer (masterspike52, reuse permitted), katamari-nx, banjo-nx,
+# sa2-nx, NetherSX2_nx (four-core layout), battd_nx (the GPU arena), bejeweled3-nx and the zuma ports (hot functions).
+"""
+
+# Keys set for Beautiful Katamari (the rest as banjo-nx ships them).
+SHIPPED = {
+    'banjo_renderer': '"renut"',
+    'renut_gpu_backend': '"deko3d"',
+    # The game's MSAA, no dynamic resolution. The request: docked renders at 1080p, handheld at 720p. Hexic 2 draws its whole frame
+    # at 1600x904 (docs/hexic2-notes.md), and these keys count from 720 = 1x: 576 is 4/5 (1280x723, the present shows 720 lines), 864 is
+    # 6/5 (1920x1085, 1080 lines). configs/renut_1600x904.toml keeps the game's own size in both modes.
+    # hexic2-nx: SMAA changes the picture (the request: pixel-identical by default). configs/renut_smaa.toml is the user's.
+    'banjo_renut_smaa': 'false',
+    # N&B's own picture keys back to their exact defaults (they act on N&B's fur shaders and portrait box, nothing here).
+    'banjo_renut_fur_shells_percent': '100',
+    'banjo_renut_portrait_fur_shells_percent': '100',
+    'banjo_renut_portrait_msaa_samples': '0',
+    'banjo_renut_render_height_handheld': '576',
+    'banjo_renut_render_height_docked': '864',
+    'banjo_renut_dynamic_resolution': 'false',
+    'disable_msaa': 'false',
+    'renut_shadow_resolution': '"1x"',
+    'renut_ambient_occlusion': '"Half"',
+    'renut_post_process_precision': '"Game"',
+    # The game paces itself (its presentation interval); no extra cap.
+    'frame_cap': '"Off"',
+    'target_refreshRate': '-1',
+    # banjo-nx's PM4 renderer and its keys are not used here.
+    'masseffect_renderer_native': 'false',
+    'gpu_plugin': '""',
+    # No four-core NPDM (2026-11-01, the user: "let's just focus on 3 core performance"): empty, the NRO writes none.
+    # rc5 named the user's forwarder (0100080021954000) and wrote its NPDM on the first launch; deleting
+    # sdmc:/atmosphere/contents/0100080021954000/exefs/main.npdm puts that forwarder back on three cores.
+    'banjo_forwarder_program_id': '""',
+    # The XMA frame cache off (2026-10-31): in the rc4 console run it saved 0-8 % of the decoding and re-decoded
+    # 10,000-23,000 frames per 10 s in bursts "to catch the codec up", which line up with the worst kick-to-data
+    # delays (16-18 ms) while sounds stalled. Exact either way (the same samples).
+    'banjo_xma_frame_cache': 'false',
+    'banjo_shader_misses': '"sdmc:/switch/hexichd-nx/shader_misses"',
+    # The XBLA full game (XamContentGetLicenseMask), not the trial.
+    'license_mask': '1',
+}
+# hexic2-nx: the request's "diagnostics off" includes the stack sampler and the stall watchdog, which pause threads.
+PLAY = {'banjo_renut_diag_resolve_trace': 'false', 'banjo_renut_diag_gpu_shaders': 'false',
+        'banjo_renut_diag_terrain': 'false', 'switch_profile_stacks': 'false', 'banjo_stall_watch_seconds': '0',
+        'banjo_cpu_profiler': 'false', 'renut_gpu_profile': '0.0'}
+# hexic2-nx (2026-11-04), from this game's census (docs/hexic2-notes.md): about 1,040 direct draws a frame in gameplay, indexed, with no
+# recorded command buffers. What acts here: the fast draw (25), render states by content (28), whole-buffer copies (22, 96 % of draws),
+# their base-vertex draws (30), mesh objects (42, 94 % of draws), the capture pool (5), the record worker (14), the setters' chain, tags,
+# compare and tags apart (20, 21, 26, 27), the texture memo and skip (32, 39), resident literals (34), repeated clears (67), the provisional
+# count (68), the render thread's pin (2). Merged draws (33) took 0 draws, and the record-time items (45-50) have nothing to act on. 70, the
+# machine copies, joins once there are copies. 1 (a Vulkan-only key) is the do-nothing control on the Switch.
+# 18 targets x 60 s = 18 minutes a round: 54 minutes for three rounds.
+AB = {'banjo_renut_ab_targets': '"25,28,22,30,42,5,14,20,21,26,27,32,39,34,67,68,2,1"', 'banjo_renut_ab_s': '30',
+      'banjo_renut_dynamic_resolution': 'false'}
+VERIFY = {k: 'true' for k in (
+    'banjo_renut_fast_draw_verify', 'banjo_renut_resource_objects_verify', 'banjo_renut_fetch_cache_verify',
+    'banjo_renut_whole_buffers_verify', 'banjo_renut_persistent_shared_verify', 'banjo_renut_chain_reuse_verify',
+    'banjo_renut_snapshot_deltas_verify', 'banjo_renut_store_cards_verify', 'banjo_renut_record_extents_verify')}
+# The CPU natives' guard (banjo_hot_guest.cpp): each thread's first 4000 calls of every native compared with the
+# generated original, then one in 64 ("[hot] DIFFERENCE" lines; the 10-s "[hot]" report counts the checks).
+VERIFY.update({'banjo_hot_guard_calls': '4000', 'banjo_hot_guard_period': '64'})
+# 2026-11-02, the user's PGO build: "turn off all logging besides crash logging". The log off (no file is made:
+# sdk/src/core/logging.cpp; deko3d.log neither), the samplers, the stall watchdog and the renderer's diagnostics off
+# (they would also put their own code in the profile, as banjo-nx's profile sessions turned them off). The crash
+# handler's rex_crash.log and the crash hooks' rex_stderr.log (abort, terminate and Mesa messages) stay.
+PGO = {'log_level': '"off"', 'switch_profile_stacks': 'false', 'banjo_cpu_profiler': 'false',
+       'banjo_show_profiler': 'false', 'banjo_show_fps': 'false', 'banjo_stall_watch_seconds': '0',
+       'renut_gpu_profile': '0.0', 'banjo_renut_diag_resolve_trace': 'false', 'banjo_renut_diag_gpu_shaders': 'false',
+       'banjo_renut_diag_terrain': 'false', 'banjo_hot_guard_calls': '0', 'banjo_hot_guard_period': '0'}
+CONFIGS = {
+    'renut_verify.toml': (VERIFY, 'every Renut verify mode on (emulator / test runs: slow; the log\'s verify lines '
+                                  'must count 0 differences)'),
+    'renut_pgo.toml': (PGO, 'the shipped settings with only the crash logs (the PGO build\'s renut.toml: no log, no '
+                            'profilers, no diagnostics)'),
+    # renut_nomsaa.toml left out (2026-10-30): disable_msaa acts through banjo-nx's mid-asm hooks at N&B's render-target
+    # creation (renut_engine/hooks.cpp, not built here); in this port the key changes nothing (the emu3 run still
+    # resolved 4-sample depth). It needs hooks at Katamari's own render-target creation first.
+    'renut_lower_res.toml': ({'banjo_renut_render_height_handheld': '504', 'banjo_renut_render_height_docked': '720'},
+                             'lower resolution for speed: 1120x633 handheld, 1600x904 docked (the present scales them; not pixel-identical)'),
+    'renut_1600x904.toml': ({'banjo_renut_render_height_handheld': '720', 'banjo_renut_render_height_docked': '720'},
+                            'the game\'s own 1600x904 in both modes, every pixel as the Xbox 360 draws it before its scaler; the present scales it to the display'),
+    'renut_smaa.toml': ({'banjo_renut_smaa': 'true'},
+                        'SMAA on (not pixel-identical: your decision; A/B target 19 measures its GPU time)'),
+    'renut_dynamic.toml': ({'banjo_renut_dynamic_resolution': 'true'},
+                           'banjo-nx\'s dynamic resolution; its keys count from 720 = 1600x904, so 540-720 is 1200x678 to 1600x904 handheld, 720-1080 is 1600x904 to 2400x1356 docked (not pixel-identical)'),
+    # hexic2-nx: docs/pacman-notes.md, "Renut against the emulated GPU". Never run on this port.
+    'renut_game_gamma.toml': ({'banjo_renut_game_gamma': 'true'},
+                              'the display\'s gamma ramp at scan-out, as the emulated GPU applies it: darks darker, up to 18 levels (not pixel-identical: your decision)'),
+}
+
+
+def apply(text, keys):
+    """Sets each key: in place where the base has it at the top level, else before the first [section] (banjo-nx's
+    [input_p1] / [input_p2] stay last: a key after a table header belongs to that table)."""
+    first_section = re.search(r'^\[', text, re.M)
+    top_end = first_section.start() if first_section else len(text)
+    for k, v in keys.items():
+        pat = re.compile(r'^(\s*)' + re.escape(k) + r'\s*=.*$', re.M)
+        m = pat.search(text, 0, top_end)
+        if m:
+            text = text[:m.start()] + f'{m.group(1)}{k} = {v}' + text[m.end():]
+        else:
+            text = text[:top_end].rstrip('\n') + f'\n{k} = {v}\n\n' + text[top_end:]
+        first_section = re.search(r'^\[', text, re.M)
+        top_end = first_section.start() if first_section else len(text)
+    return text
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--banjo', required=True)
+    ap.add_argument('--out', required=True)
+    a = ap.parse_args()
+    base = open(a.banjo, encoding='utf-8').read().replace('sdmc:/switch/banjo-nx/', 'sdmc:/switch/hexichd-nx/')
+    # hexic2-nx: the base is katamari-nx's shipped renut.toml: its three header lines, its keys and paths go.
+    base = base.replace('sdmc:/switch/katamari-nx/', 'sdmc:/switch/hexichd-nx/')
+    base = '\n'.join(l for l in base.split('\n')
+                     if not l.startswith('katamari_') and 'katamari' not in l.lower().split('=')[0]) + '\n'
+    shipped = apply(base, SHIPPED)
+    os.makedirs(os.path.join(a.out, 'configs'), exist_ok=True)
+    outs = {
+        'renut.toml': (shipped, 'the shipped settings (720 lines handheld, 1080 docked; diagnostics and logs on)'),
+        'renut_play.toml': (apply(shipped, PLAY), 'renut.toml with the render-thread diagnostics off, for playing'),
+        'renut_ab.toml': (apply(shipped, AB), 'renut.toml with an in-run A/B list, 30 s halves, target 1 as the '
+                                              'control (a Vulkan-only key: nothing on the Switch)'),
+    }
+    for name, (cfg, what) in CONFIGS.items():
+        outs[os.path.join('configs', name)] = (apply(shipped, cfg), what)
+    for name, (text, what) in outs.items():
+        with open(os.path.join(a.out, name), 'w', encoding='utf-8', newline='\n') as f:
+            f.write(HEADER.format(what=what) + text)
+        print(name)
+
+
+if __name__ == '__main__':
+    main()
