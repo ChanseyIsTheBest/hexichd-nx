@@ -659,7 +659,8 @@ BANJO_RENUT_HOOK_RAW(sub_920B9178) {  // hexichd-nx: stw r5,12948(r31); three ga
   BeginTilingImpl(ctx.r3.u32, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32, ctx.r4.u32, float(ctx.f1.f64), ctx.r9.u32);
 }
 BANJO_RENUT_HOOK_RAW(sub_920B94A0) {  // hexichd-nx: r4 flags, r5 rects, r6 destination, r7 colour, f1 Z, r9 stencil, r10 parameters; three game callers  // rr6-nx: not in this XDK; Katamari 824F0150
-  ctx.r3.u64 = EndTilingImpl(ctx.r3.u32, true, ctx.r4.u32, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32, float(ctx.f1.f64),
+  // hexichd-nx: the destination is the game's own texture (D3DDevice_CreateTexture is not hooked at this XDK): its shadow, as Resolve above.
+  ctx.r3.u64 = EndTilingImpl(ctx.r3.u32, true, ctx.r4.u32, ctx.r5.u32, native::Rr6TextureShadow(ctx.r6.u32), ctx.r7.u32, float(ctx.f1.f64),
                              ctx.r9.u32, ctx.r10.u32);
 }
 BANJO_RENUT_UNHOOKED_HOOK_SHARED(unlinked_82237FE8, D3DDevice_BeginExport_hook);  // D3DDevice_BeginExport  // rr6-nx: not hooked in this XDK; Katamari 82237FE8

@@ -928,6 +928,12 @@ void D3DDevice_Swap_hook(u32 device_va, u32 front_buffer, u32 /*parameters*/) {
     {
       std::lock_guard lock(State().mutex);
       image = FrontBufferImageLocked(front_buffer);
+      {  // TEMP-HD-DIAG
+        static int temp_hd_diag = 0;
+        if (temp_hd_diag++ < 12)
+          REXLOG_WARN("[hd-swap] front buffer {:08X}: host texture {}, {}x{}, source {}x{}", front_buffer, image.texture ? 1 : 0, image.width,
+                      image.height, image.source_width, image.source_height);
+      }
       if (image.texture)
         State().last_front_buffer = front_buffer;
       AdvanceTextureFrameLocked();
@@ -1304,7 +1310,11 @@ BANJO_RENUT_UNHOOKED_HOOK(unlinked_824E05E8, D3DDevice_SetRingBufferParameters_h
 // set or clear a flag under the critical section at +14000. Renut's device has no ring to hand over and that section is not initialised on it.
 BANJO_RENUT_HOOK_RAW(sub_920B2880) {}
 BANJO_RENUT_HOOK_RAW(sub_920B2918) {}
-BANJO_RENUT_HOOK(sub_920B4E10, D3DDevice_Swap_hook);  // D3DDevice_Swap  // rr6-nx: not hooked in this XDK; Katamari 824E8E90
+// hexichd-nx: the game swaps its own two textures directly (its render functions, not only Present): their shadows, where the resolves went.
+static void HexicHdSwap(u32 device_va, u32 front_buffer, u32 parameters) {
+  D3DDevice_Swap_hook(device_va, native::Rr6TextureShadow(front_buffer), parameters);
+}
+BANJO_RENUT_HOOK(sub_920B4E10, HexicHdSwap);  // D3DDevice_Swap  // rr6-nx: not hooked in this XDK; Katamari 824E8E90
 BANJO_RENUT_UNHOOKED_HOOK_SHARED(unlinked_82640818, D3DDevice_BeginCommandBuffer_hook);  // D3DDevice_BeginCommandBuffer  // rr6-nx: not hooked in this XDK; Katamari 82640818
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_82640DE8, D3DDevice_EndCommandBuffer_hook);  // D3DDevice_EndCommandBuffer  // rr6-nx: not hooked in this XDK; Katamari 82640DE8
 BANJO_RENUT_UNHOOKED_HOOK_SHARED(unlinked_821F1A78, D3DDevice_RunCommandBuffer_hook);  // D3DDevice_RunCommandBuffer  // rr6-nx: not hooked in this XDK; Katamari 821F1A78
