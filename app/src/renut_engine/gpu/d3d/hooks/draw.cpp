@@ -635,15 +635,15 @@ void D3DDevice_SetPixelShader_hook(u32 device, u32 shader) {
 
 } // namespace
 
-BANJO_RENUT_HOOK(sub_82254128, D3DDevice_DrawVertices_hook);  // D3DDevice_DrawVertices  // rr6-nx: Zuma pair of sub_8212AA88; 12 sites; Katamari 824D9D08
-BANJO_RENUT_HOOK(sub_82254368, D3DDevice_DrawIndexedVertices_hook);  // D3DDevice_DrawIndexedVertices  // rr6-nx: reads the index buffer +12532, the same immediates as DrawVertices; 2 sites; Katamari 824DA0F0
+BANJO_RENUT_HOOK(sub_9221D7A0, D3DDevice_DrawVertices_hook);  // D3DDevice_DrawVertices  // rr6-nx: Zuma pair of sub_8212AA88; 12 sites; Katamari 824D9D08 hexichd-nx: rr6 82254128
+BANJO_RENUT_UNHOOKED_HOOK(unlinked_82254368, D3DDevice_DrawIndexedVertices_hook);  // D3DDevice_DrawIndexedVertices  // rr6-nx: reads the index buffer +12532, the same immediates as DrawVertices; 2 sites; Katamari 824DA0F0 hexichd-nx: this game does not link it
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824DA9C0, D3DDevice_DrawIndexedTessellatedVertices_hook);  // D3DDevice_DrawIndexedTessellatedVertices  // rr6-nx: not hooked in this XDK; Katamari 824DA9C0
-BANJO_RENUT_HOOK(sub_822540A0, D3DDevice_DrawVerticesUP_hook);  // D3DDevice_DrawVerticesUP  // rr6-nx: BeginVertices, memcpy, the end; 16 sites; Katamari 824D9758
+BANJO_RENUT_HOOK(sub_9221D328, D3DDevice_DrawVerticesUP_hook);  // D3DDevice_DrawVerticesUP  // rr6-nx: BeginVertices, memcpy, the end; 16 sites; Katamari 824D9758 hexichd-nx: rr6 822540A0
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_8263F2B8, D3DDevice_DrawIndexedVerticesUP_hook);  // D3DDevice_DrawIndexedVerticesUP  // rr6-nx: not hooked in this XDK; Katamari 8263F2B8
-BANJO_RENUT_HOOK(sub_82253E00, D3DDevice_BeginVertices_hook);  // D3DDevice_BeginVertices  // rr6-nx: Recomp's notes; 30 sites, each followed by sub_82254080; Katamari 824D92B8
+BANJO_RENUT_HOOK(sub_9221D088, D3DDevice_BeginVertices_hook);  // D3DDevice_BeginVertices  // rr6-nx: Recomp's notes; 30 sites, each followed by sub_82254080; Katamari 824D92B8 hexichd-nx: rr6 82253E00
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824F3248, D3DDevice_ClearF_hook);  // D3DDevice_ClearF  // rr6-nx: not hooked in this XDK; Katamari 824F3248
-BANJO_RENUT_HOOK(sub_82253D50, D3DDevice_Clear_hook);  // D3DDevice_Clear  // rr6-nx: Zuma pair of sub_821287F8; 4 sites; Katamari 824F3370
-BANJO_RENUT_HOOK(sub_82258980, D3DDevice_Resolve_hook);  // D3DDevice_Resolve  // rr6-nx: Zuma pair of sub_82134138; 14 sites; Katamari 824F12B8
+BANJO_RENUT_HOOK(sub_920B5FE0, D3DDevice_Clear_hook);  // D3DDevice_Clear  // rr6-nx: Zuma pair of sub_821287F8; 4 sites; Katamari 824F3370 hexichd-nx: rr6 82253D50
+BANJO_RENUT_HOOK(sub_920C58B8, D3DDevice_Resolve_hook);  // D3DDevice_Resolve  // rr6-nx: Zuma pair of sub_82134138; 14 sites; Katamari 824F12B8 hexichd-nx: rr6 82258980
 BANJO_RENUT_UNHOOKED_HOOK_SHARED(unlinked_82246798, D3DDevice_BeginTiling_hook);  // D3DDevice_BeginTiling  // rr6-nx: not hooked in this XDK; Katamari 82246798
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_821E17C0, D3DDevice_EndTiling_hook);  // D3DDevice_EndTiling  // rr6-nx: not hooked in this XDK; Katamari 821E17C0
 // katamari-nx (2026-10-30): XDK 2.0.5632's BeginTiling (sub_824EFBC8: it stores the count at TileCount +0x31C4 and
@@ -659,7 +659,7 @@ BANJO_RENUT_UNHOOKED_HOOK_RAW(unlinked_824F0150) {  // rr6-nx: not in this XDK; 
 }
 BANJO_RENUT_UNHOOKED_HOOK_SHARED(unlinked_82237FE8, D3DDevice_BeginExport_hook);  // D3DDevice_BeginExport  // rr6-nx: not hooked in this XDK; Katamari 82237FE8
 BANJO_RENUT_UNHOOKED_HOOK_SHARED(unlinked_82237D80, D3DDevice_EndExport_hook);  // D3DDevice_EndExport  // rr6-nx: not hooked in this XDK; Katamari 82237D80
-BANJO_RENUT_HOOK(sub_8225A008, D3DDevice_Present_hook);  // D3DDevice_Present  // rr6-nx: Zuma pair of sub_821221C0; 1 site; Katamari 824E9428
-BANJO_RENUT_HOOK(sub_8224EC38, Rr6SetVertexShader);  // D3DDevice_SetVertexShader  // rr6-nx: Zuma pair of sub_82124A50; 58 sites; keeps a reference; Katamari 824D4930
-BANJO_RENUT_HOOK(sub_8224E8C8, Rr6SetPixelShader);  // D3DDevice_SetPixelShader  // rr6-nx: Zuma pair of sub_821246E0; 58 sites; Katamari 824D4630
-BANJO_RENUT_HOOK(sub_82254080, Rr6EndVertices);  // D3DDevice_EndVertices  // rr6-nx: 30 sites, each after a BeginVertices
+BANJO_RENUT_HOOK(sub_920B53F0, D3DDevice_Present_hook);  // D3DDevice_Present  // rr6-nx: Zuma pair of sub_821221C0; 1 site; Katamari 824E9428 hexichd-nx: rr6 8225A008
+BANJO_RENUT_HOOK(sub_920BBEA0, Rr6SetVertexShader);  // D3DDevice_SetVertexShader  // rr6-nx: Zuma pair of sub_82124A50; 58 sites; keeps a reference; Katamari 824D4930 hexichd-nx: rr6 8224EC38
+BANJO_RENUT_HOOK(sub_920BBB30, Rr6SetPixelShader);  // D3DDevice_SetPixelShader  // rr6-nx: Zuma pair of sub_821246E0; 58 sites; Katamari 824D4630 hexichd-nx: rr6 8224E8C8
+BANJO_RENUT_HOOK(sub_9221D308, Rr6EndVertices);  // D3DDevice_EndVertices  // rr6-nx: 30 sites, each after a BeginVertices hexichd-nx: rr6 82254080

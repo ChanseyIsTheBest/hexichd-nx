@@ -4,7 +4,7 @@ ring runs the game's own PM4 code on Renut's device, fills a ring nobody drains 
 Walks the static call graph upward from the given functions, stopping at hooked functions, and names each caller by its
 Katamari or N&B counterpart when the hook map's pairs know one.
 
-  python -I tools/renut_unhooked_callers.py 0x921261C8 [more] [--depth 4] [--code 9208E000:92589AD4]
+  python -I tools/renut_unhooked_callers.py 0x921261C8 [more] [--depth 4] [--code 9204D000:922526E4]
 """
 import argparse
 import json
@@ -20,7 +20,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('addrs', nargs='+')
     ap.add_argument('--depth', type=int, default=4)
-    ap.add_argument('--code', default='9208E000:92589AD4')
+    ap.add_argument('--code', default='9204D000:922526E4')
     a = ap.parse_args()
     lo, hi = (int(x, 16) for x in a.code.split(':'))
     img = open(os.path.join(ROOT, 'out', 'renut_image.bin'), 'rb').read()

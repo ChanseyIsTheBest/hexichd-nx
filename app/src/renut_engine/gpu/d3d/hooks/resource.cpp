@@ -122,7 +122,7 @@ void FreePhysical(u32 va) {
 
 // The GPU format table (word_82005200): per D3D format low 6 bits, bits per
 // pixel in the low byte, flags in the high one.
-constexpr u32 kFormatTable = 0x8206C088;  // rr6-nx: Zuma's 128 bytes, word for word;  // katamari-nx: 0x82005200->0x820FA9D0
+constexpr u32 kFormatTable = 0x92002408;  // rr6-nx: Zuma's 128 bytes, word for word;  // katamari-nx: 0x82005200->0x820FA9D0 hexichd-nx: rr6 8206C088
 
 u16 FormatTableEntry(u32 format) {
   const auto *table = GuestPtr<const be_u16>(kFormatTable);
@@ -1968,26 +1968,26 @@ u32 Rr6AddRefAny(u32 resource) {
 
 } // namespace renut::gpu::native
 
-BANJO_RENUT_HOOK(sub_82252CB8, Rr6CreateSurface);  // D3DDevice_CreateSurface  // rr6-nx: 64-byte header, 0x01040001; 6 sites; the game's object and a Renut record; Katamari 824D23F8
+BANJO_RENUT_HOOK(sub_920B4578, Rr6CreateSurface);  // D3DDevice_CreateSurface  // rr6-nx: 64-byte header, 0x01040001; 6 sites; the game's object and a Renut record; Katamari 824D23F8 hexichd-nx: rr6 82252CB8
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824DB028, D3DResource_Destroy_hook);  // D3DResource_Destroy  // rr6-nx: not hooked in this XDK; Katamari 824DB028
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824DB448, D3D_UnlockResource_hook);  // D3D_UnlockResource  // rr6-nx: not hooked in this XDK; Katamari 824DB448
-BANJO_RENUT_HOOK(sub_82254D90, D3DVertexBuffer_Unlock_hook);  // D3DVertexBuffer_Unlock  // rr6-nx: 4 instructions, reads +12; 11 sites, one for each Lock; Katamari 824DB7B0
-BANJO_RENUT_HOOK(sub_822510A8, Rr6SurfaceUnlockRect);  // D3DSurface_UnlockRect  // rr6-nx: Zuma pair of sub_82128958; Katamari 824D0700
+BANJO_RENUT_HOOK(sub_920B9F38, D3DVertexBuffer_Unlock_hook);  // D3DVertexBuffer_Unlock  // rr6-nx: 4 instructions, reads +12; 11 sites, one for each Lock; Katamari 824DB7B0 hexichd-nx: rr6 82254D90
+BANJO_RENUT_HOOK(sub_920B2AD8, Rr6SurfaceUnlockRect);  // D3DSurface_UnlockRect  // rr6-nx: Zuma pair of sub_82128958; Katamari 824D0700 hexichd-nx: rr6 822510A8
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824DB210, LockResource_hook);  // D3D_LockResource  // rr6-nx: not hooked in this XDK; Katamari 824DB210
-BANJO_RENUT_HOOK(sub_82254D20, Rr6VertexBufferLock);  // D3DVertexBuffer_Lock  // rr6-nx: returns base + offset (Zuma's adapter); 11 sites; Katamari 824DB760
-BANJO_RENUT_HOOK(sub_82254E50, Rr6IndexBufferLock);  // D3DIndexBuffer_Lock  // rr6-nx: returns base + offset; 2 sites; Katamari 824DB870
+BANJO_RENUT_HOOK(sub_920B9EC8, Rr6VertexBufferLock);  // D3DVertexBuffer_Lock  // rr6-nx: returns base + offset (Zuma's adapter); 11 sites; Katamari 824DB760 hexichd-nx: rr6 82254D20
+BANJO_RENUT_UNHOOKED_HOOK(unlinked_82254E50, Rr6IndexBufferLock);  // D3DIndexBuffer_Lock  // rr6-nx: returns base + offset; 2 sites; Katamari 824DB870 hexichd-nx: this game does not link it
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D1918, D3D_LockSurface_hook);  // D3D_LockSurface  // rr6-nx: not hooked in this XDK; Katamari 824D1918
-BANJO_RENUT_HOOK(sub_82252498, Rr6TextureLockRect);  // D3D_Lock2DSurface  // rr6-nx: the target of the thunks sub_82252A18 (level) and sub_82252AD8 (face, level); Katamari 824D19E0
+BANJO_RENUT_HOOK(sub_920B3E20, Rr6TextureLockRect);  // D3D_Lock2DSurface  // rr6-nx: the target of the thunks sub_82252A18 (level) and sub_82252AD8 (face, level); Katamari 824D19E0 hexichd-nx: rr6 82252498
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D1A70, D3D_Lock3DSurface_hook);  // D3D_Lock3DSurface  // rr6-nx: not hooked in this XDK; Katamari 824D1A70
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_8263E958, D3DArrayTexture_LockRect_hook);  // D3DArrayTexture_LockRect  // rr6-nx: not hooked in this XDK; Katamari 8263E958
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D2148, D3DLineTexture_LockRect_hook);  // D3DLineTexture_LockRect  // rr6-nx: not hooked in this XDK; Katamari 824D2148
-BANJO_RENUT_HOOK(sub_82253018, Rr6SurfaceLockRect);  // D3DSurface_LockRect  // rr6-nx: Zuma pair of sub_8212A870; on the texture's shadow; Katamari 824D25B8
-BANJO_RENUT_HOOK(sub_82253088, Rr6VolumeLockBox);  // D3DVolume_LockBox  // rr6-nx: Katamari pair; (volume, locked, box, flags); Katamari 824D2620
+BANJO_RENUT_HOOK(sub_920B48D8, Rr6SurfaceLockRect);  // D3DSurface_LockRect  // rr6-nx: Zuma pair of sub_8212A870; on the texture's shadow; Katamari 824D25B8 hexichd-nx: rr6 82253018
+BANJO_RENUT_HOOK(sub_920B4948, Rr6VolumeLockBox);  // D3DVolume_LockBox  // rr6-nx: Katamari pair; (volume, locked, box, flags); Katamari 824D2620 hexichd-nx: rr6 82253088
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_8263EA48, D3D_Lock3DSurface_hook);  // D3D_Lock3DSurface_Thunk  // rr6-nx: not hooked in this XDK; Katamari 8263EA48
-BANJO_RENUT_HOOK(sub_82254608, Rr6AddRef);  // D3DResource_AddRef  // rr6-nx: Zuma pair of sub_82122300; 2 sites; Katamari 824DB550
-BANJO_RENUT_HOOK(sub_82254B88, Rr6Release);  // D3DResource_Release  // rr6-nx: Zuma pair of sub_82122880; 57 sites; Katamari 824DB5C8
-BANJO_RENUT_HOOK(sub_82254670, Rr6GetType);  // D3DResource_GetType  // rr6-nx: Zuma pair of sub_82122368; 8 sites; Katamari 824DAF98
-BANJO_RENUT_HOOK(sub_82252FC0, Rr6SurfaceGetDesc);  // D3DSurface_GetDesc  // rr6-nx: Katamari pair; the game's surfaces by the game's code, the automatic ones by Renut's; Katamari 824D2520
+BANJO_RENUT_HOOK(sub_920B97B0, Rr6AddRef);  // D3DResource_AddRef  // rr6-nx: Zuma pair of sub_82122300; 2 sites; Katamari 824DB550 hexichd-nx: rr6 82254608
+BANJO_RENUT_HOOK(sub_920B9D30, Rr6Release);  // D3DResource_Release  // rr6-nx: Zuma pair of sub_82122880; 57 sites; Katamari 824DB5C8 hexichd-nx: rr6 82254B88
+BANJO_RENUT_HOOK(sub_920B9818, Rr6GetType);  // D3DResource_GetType  // rr6-nx: Zuma pair of sub_82122368; 8 sites; Katamari 824DAF98 hexichd-nx: rr6 82254670
+BANJO_RENUT_HOOK(sub_920B4880, Rr6SurfaceGetDesc);  // D3DSurface_GetDesc  // rr6-nx: Katamari pair; the game's surfaces by the game's code, the automatic ones by Renut's; Katamari 824D2520 hexichd-nx: rr6 82252FC0
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D25D8, D3DVolume_GetDesc_hook);  // D3DVolume_GetDesc  // rr6-nx: the game's own code (sub_82253040, XDK 2135's headers)
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D1258, Get2DSurfaceDesc);  // D3D_Get2DSurfaceDesc  // rr6-nx: the game's own code (sub_82251DC8, XDK 2135's headers)
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_8263E970, Get2DSurfaceDesc);  // D3D_Get2DSurfaceDesc_Thunk  // rr6-nx: not hooked in this XDK; Katamari 8263E970
@@ -1997,13 +1997,13 @@ BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D0E90, LevelLayout_hook);  // D3D_GetLevel
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D1458, SubresourceLayout_hook);  // D3D_GetSubresourceLayout  // rr6-nx: not hooked in this XDK; Katamari 824D1458
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D2080, D3DBaseTexture_GetLevelCount_hook);  // D3DBaseTexture_GetLevelCount  // rr6-nx: the game's own code (sub_822528A0, XDK 2135's headers)
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_8263E960, D3DArrayTexture_GetArraySize_hook);  // D3DArrayTexture_GetArraySize  // rr6-nx: not hooked in this XDK; Katamari 8263E960
-BANJO_RENUT_HOOK(sub_82251090, Rr6TextureUnlockRect);  // D3DArrayTexture_UnlockRect  // rr6-nx: Zuma pair of sub_82128940; (texture, level); Katamari 824D06E8
+BANJO_RENUT_HOOK(sub_920B2AC0, Rr6TextureUnlockRect);  // D3DArrayTexture_UnlockRect  // rr6-nx: Zuma pair of sub_82128940; (texture, level); Katamari 824D06E8 hexichd-nx: rr6 82251090
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824DB8B8, D3DConstantBuffer_Unlock_hook);  // D3DConstantBuffer_Unlock  // rr6-nx: not hooked in this XDK; Katamari 824DB8B8
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D2090, D3DTexture_GetSurfaceLevel_hook);  // D3DTexture_GetSurfaceLevel  // rr6-nx: the game's own code (sub_82252970, XDK 2135's headers)
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D2160, D3DCubeTexture_GetCubeMapSurface_hook);  // D3DCubeTexture_GetCubeMapSurface  // rr6-nx: the game's own code (sub_82252A30, XDK 2135's headers)
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D2228, D3DVolumeTexture_GetVolumeLevel_hook);  // D3DVolumeTexture_GetVolumeLevel  // rr6-nx: the game's own code (sub_82252AF0, XDK 2135's headers)
-BANJO_RENUT_HOOK(sub_82254C70, D3DDevice_CreateVertexBuffer_hook);  // D3DDevice_CreateVertexBuffer  // rr6-nx: Zuma pair of sub_82122968; 11 sites; Katamari 824DB698
-BANJO_RENUT_HOOK(sub_82254DA0, Rr6CreateIndexBuffer);  // D3DDevice_CreateIndexBuffer  // rr6-nx: 20-byte header, 0x41020001 / 0x01020001; 2 sites; Format 0 16-bit, 1 32-bit; Katamari 824DB7C0
+BANJO_RENUT_HOOK(sub_920B9E18, D3DDevice_CreateVertexBuffer_hook);  // D3DDevice_CreateVertexBuffer  // rr6-nx: Zuma pair of sub_82122968; 11 sites; Katamari 824DB698 hexichd-nx: rr6 82254C70
+BANJO_RENUT_UNHOOKED_HOOK(unlinked_82254DA0, Rr6CreateIndexBuffer);  // D3DDevice_CreateIndexBuffer  // rr6-nx: 20-byte header, 0x41020001 / 0x01020001; 2 sites; Format 0 16-bit, 1 32-bit; Katamari 824DB7C0 hexichd-nx: this game does not link it
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D22D8, D3DDevice_CreateTexture_hook);  // D3DDevice_CreateTexture  // rr6-nx: the game's own code (sub_82252B98, XDK 2135's headers)
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D1B18, SetTextureHeader_hook);  // D3D_SetTextureHeader  // rr6-nx: the game's own code (sub_822525D0, XDK 2135's headers)
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D09C8, FindTextureSize_hook);  // D3D_FindTextureSize  // rr6-nx: not hooked in this XDK; Katamari 824D09C8
@@ -2013,6 +2013,7 @@ BANJO_RENUT_UNHOOKED_HOOK(unlinked_8263DCA8, GetGpuTextureDimensions_hook);  // 
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D0788, BlockSizeOfGpuFormat_hook);  // D3D_BlockSizeOfGpuFormat  // rr6-nx: the game's own code (sub_822510C0, XDK 2135's headers)
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D08A8, AlignTextureDimensions_hook);  // D3D_AlignTextureDimensions  // rr6-nx: the game's own code (sub_82251268, XDK 2135's headers)
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D0D38, GetMipTailLevelOffsetCoords_hook);  // D3D_GetMipTailLevelOffsetCoords  // rr6-nx: the game's own code (sub_822518B0, XDK 2135's headers)
-BANJO_RENUT_HOOK(sub_8224E758, Rr6Release);  // rr6-nx: a shader's own Release (the count at +4, data at +12): Renut's objects
-BANJO_RENUT_HOOK(sub_8224ED60, Rr6Release);  // rr6-nx: a declaration's own Release (the count at +4): Renut's objects
-BANJO_RENUT_HOOK(sub_82254EB8, Rr6IndexBufferUnlock);  // D3DIndexBuffer_Unlock  // rr6-nx: 4 instructions, reads +12; 2 sites
+BANJO_RENUT_HOOK(sub_920BB9C0, Rr6Release);  // rr6-nx: a shader's own Release (the count at +4, data at +12): Renut's objects hexichd-nx: rr6 8224E758
+BANJO_RENUT_HOOK(sub_920BBFC8, Rr6Release);  // rr6-nx: a declaration's own Release (the count at +4): Renut's objects hexichd-nx: rr6 8224ED60
+BANJO_RENUT_UNHOOKED_HOOK(unlinked_82254EB8, Rr6IndexBufferUnlock);  // D3DIndexBuffer_Unlock  // rr6-nx: 4 instructions, reads +12; 2 sites
+ hexichd-nx: this game does not link it

@@ -660,9 +660,9 @@ void D3DVertexShader_Bind_hook(u32 shader_va, u32 declaration_va, mapped_u32 str
 
 } // namespace
 
-BANJO_RENUT_HOOK(sub_8224EF40, D3DDevice_CreateVertexShader_hook);  // D3DDevice_CreateVertexShader  // rr6-nx: Zuma pair of sub_82125BB8; 1 site; Katamari 824D6120
-BANJO_RENUT_HOOK(sub_8224EE50, D3DDevice_CreatePixelShader_hook);  // D3DDevice_CreatePixelShader  // rr6-nx: Zuma pair of sub_82125AC8; 1 site; Katamari 824D6010
-BANJO_RENUT_HOOK(sub_8224ECA0, D3DDevice_CreateVertexDeclaration_hook);  // D3DDevice_CreateVertexDeclaration  // rr6-nx: Zuma pair of sub_82124AB8; 2 sites; Katamari 824D4C50
+BANJO_RENUT_HOOK(sub_920BD070, D3DDevice_CreateVertexShader_hook);  // D3DDevice_CreateVertexShader  // rr6-nx: Zuma pair of sub_82125BB8; 1 site; Katamari 824D6120 hexichd-nx: rr6 8224EF40
+BANJO_RENUT_HOOK(sub_920BCF80, D3DDevice_CreatePixelShader_hook);  // D3DDevice_CreatePixelShader  // rr6-nx: Zuma pair of sub_82125AC8; 1 site; Katamari 824D6010 hexichd-nx: rr6 8224EE50
+BANJO_RENUT_HOOK(sub_920BBF08, D3DDevice_CreateVertexDeclaration_hook);  // D3DDevice_CreateVertexDeclaration  // rr6-nx: Zuma pair of sub_82124AB8; 2 sites; Katamari 824D4C50 hexichd-nx: rr6 8224ECA0
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_8263FBD0, D3DVertexShader_Bind_hook);  // D3DVertexShader_Bind  // rr6-nx: not hooked in this XDK; Katamari 8263FBD0
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D4838, XGRegisterVertexShader_hook);  // XGRegisterVertexShader  // rr6-nx: not hooked in this XDK; Katamari 824D4838
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_826375A0, XGRegisterPixelShader_hook);  // XGRegisterPixelShader  // rr6-nx: not hooked in this XDK; Katamari 826375A0

@@ -29,8 +29,28 @@ fp_copy_forwarding = true
 div_inline = true
 fp_moves_modeless = true
 # The register diet, this game's audits: docs/hexichd-notes.md, "Codegen options".
-# The register diet: this game's audits go here (tools/non_argument_audit.py, tools/diet_keep_list.py).
-#DIET#
+# The register diet (every codegen option banjo-nx uses; audited on this game's code, docs/hexichd-notes.md, "Codegen options"):
+#   non_volatile_as_local: r14-r31, f14-f31, v14-v31 as C++ locals. tools/read_before_write.py --noreturn=922132A0, run on
+#     code generated WITH the option, decides any share_registers (config/renut_funcs.toml, overrides.toml).
+#   elide_lr_stores: the link register is read only by prologue saves and setjmp / longjmp (handled at their call sites).
+#   non_argument_as_local: r0, r2, r11, r12, f0, v32-v63 as C++ locals; tools/non_argument_audit.py --noreturn=922132A0.
+#   v64-v127 stay in ctx from the start (katamari-nx's rc3 finding: a codec keeps constants there across its calls).
+non_volatile_as_local = true
+non_volatile_as_local_keep = ["v64-v127"]
+elide_lr_stores = true
+non_argument_as_local = true
+# 64 ENTRY and 2 RET functions (tools/diet_keep_list.py, from tools/non_argument_audit.py).
+non_argument_as_local_keep = [
+    0x920A2F2C, 0x920A2F54, 0x920A31D8, 0x920A3200, 0x920A3A70, 0x920A3A90, 0x920A4548, 0x920A4568,
+    0x920A47EC, 0x920A480C, 0x920A4DDC, 0x920A4DFC, 0x920A500C, 0x920A502C, 0x920A5244, 0x920A5264,
+    0x920A56CC, 0x920A56EC, 0x920A99DC, 0x920A99FC, 0x920AA3E4, 0x920AA404, 0x920AA6A0, 0x920AA6CC,
+    0x920AA7D4, 0x920AA7F4, 0x920AAAA0, 0x920AAAC0, 0x920AB534, 0x920AB554, 0x920AF2E8, 0x920AF308,
+    0x920AF710, 0x920AF7D8, 0x920AFD54, 0x920AFD74, 0x920AFEF0, 0x920AFF10, 0x921CD5AC, 0x921CD6BC,
+    0x921CD77C, 0x921CDC14, 0x921CDDD0, 0x921CDE64, 0x921CDE8C, 0x921CDFC4, 0x921CDFEC, 0x922115FC,
+    0x9221161C, 0x9221198C, 0x922119AC, 0x92212934, 0x92213ADC, 0x922140E0, 0x92214100, 0x9221614C,
+    0x9221616C, 0x9221667C, 0x922177EC, 0x9221780C, 0x92218E08, 0x92218E28, 0x9224FB00, 0x9224FB20,
+    0x922512D8, 0x92251304,
+]
 
 # setjmp / longjmp (peggle2-nx's method, by shape; tools/ppc_dis.py), each the only one in the code range: setjmp 0x922133C0 has
 # `stfd f14,0(r3)` after a check of a hook word (`lwz r0,...; bnectr`), longjmp 0x922132A0 has `lfd f14,0(r7)` after `mr r7,r3`.

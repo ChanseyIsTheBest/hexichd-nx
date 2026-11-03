@@ -40,7 +40,7 @@ import dead_ctx_defs as dcd  # noqa: E402
 
 DFORM = re.compile(r'^(-?\d+)\((r\d+)\)$')
 ASSIGN = re.compile(r'^(?:REX_DEAD_DEF\()?((?:ctx\.)?[rf]\d+)\.(?:u64|s64|u32|s32|u8|u16|s8|s16|f64)\s*=')
-NORETURN = {'923C6FB0', '82BB59B0', '822B27A0', '822B8648', '82BAEAB8', '82BB1130', '82BB4AE0', '82BB4D00', '82BB9B78', '82BCDC10'}
+NORETURN = {'922132A0', '82BB59B0', '822B27A0', '822B8648', '82BAEAB8', '82BB1130', '82BB4AE0', '82BB4D00', '82BB9B78', '82BCDC10'}
 
 
 def instructions(lines):

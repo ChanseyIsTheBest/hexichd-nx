@@ -2,3 +2,73 @@
 # tools/runtime_gap_resolver.py) and jump tables (tools/switch_check.py), each with its evidence.
 
 [functions]
+
+# Complete functions in unclaimed gaps without a pointer the pointer sweep sees (tools/gap_sweep.py pass 1): the scratch listing fits in the gap (or continues only into a registered tail it branches
+# to), ends in a terminator, reads no register that is undefined at a function entry. First case:
+# 0x82689770, the first PC boot's "Call to invalid or unregistered function".
+"0x9204D110" = { }  # 1 instructions, gap sweep
+"0x9204D130" = { }  # 6 instructions, gap sweep
+"0x9204D148" = { }  # 6 instructions, gap sweep
+"0x9204D160" = { }  # 6 instructions, gap sweep
+"0x9204D178" = { }  # 6 instructions, gap sweep
+"0x9204D190" = { }  # 6 instructions, gap sweep
+"0x9204D1A8" = { }  # 6 instructions, gap sweep
+"0x9204FCF8" = { }  # 8 in the gap, then the registered tail sub_9204FD18, gap sweep
+"0x92052460" = { }  # 4 instructions, gap sweep
+"0x92052470" = { }  # 4 instructions, gap sweep
+"0x92052480" = { }  # 4 instructions, gap sweep
+"0x9208B180" = { }  # 18 instructions, gap sweep
+# 0x920AF40C is not a function: a `bl` of its parent runs into it (tools/override_labels_check.py).
+"0x920F8F18" = { }  # 1 instructions, gap sweep
+"0x920F8F50" = { }  # 1 instructions, gap sweep
+"0x920FFAD4" = { }  # 1 instructions, gap sweep
+"0x92166460" = { }  # 14 instructions, gap sweep
+"0x921AFA14" = { }  # 1 instructions, gap sweep
+"0x921B52B8" = { }  # 2 instructions, gap sweep
+"0x921BC610" = { }  # 2 instructions, gap sweep
+"0x921BC628" = { }  # 2 instructions, gap sweep
+"0x921BC638" = { }  # 2 instructions, gap sweep
+"0x921BE430" = { }  # 2 instructions, gap sweep
+"0x921BE440" = { }  # 2 instructions, gap sweep
+"0x921D2198" = { }  # 5 instructions, gap sweep
+"0x921E5E00" = { }  # 2 instructions, gap sweep
+"0x921F0F90" = { }  # 1 instructions, gap sweep
+# 0x92216678 is not a function: the `blr` of a parent's epilogue, an instruction runs into it.
+"0x92233C64" = { }  # 1 instructions, gap sweep
+"0x92236FD8" = { }  # 6 instructions, gap sweep
+"0x92251528" = { }  # 5 instructions, gap sweep
+
+# Complete functions in unclaimed gaps without a pointer the pointer sweep sees (tools/gap_sweep.py pass 2): the scratch listing fits in the gap (or continues only into a registered tail it branches
+# to), ends in a terminator, reads no register that is undefined at a function entry. First case:
+# 0x82689770, the first PC boot's "Call to invalid or unregistered function".
+"0x921B52C0" = { }  # 2 instructions, gap sweep
+"0x921BC618" = { }  # 2 instructions, gap sweep
+"0x921BE448" = { }  # 2 instructions, gap sweep
+
+# Complete functions in unclaimed gaps without a pointer the pointer sweep sees (tools/gap_sweep.py pass 3): the scratch listing fits in the gap (or continues only into a registered tail it branches
+# to), ends in a terminator, reads no register that is undefined at a function entry. First case:
+# 0x82689770, the first PC boot's "Call to invalid or unregistered function".
+"0x921B52C8" = { }  # 2 instructions, gap sweep
+"0x921BE450" = { }  # 2 instructions, gap sweep
+
+# Complete functions in unclaimed gaps without a pointer the pointer sweep sees (tools/gap_sweep.py pass 4): the scratch listing fits in the gap (or continues only into a registered tail it branches
+# to), ends in a terminator, reads no register that is undefined at a function entry. First case:
+# 0x82689770, the first PC boot's "Call to invalid or unregistered function".
+"0x921BE458" = { }  # 2 instructions, gap sweep
+
+# Complete functions in unclaimed gaps without a pointer the pointer sweep sees (tools/gap_sweep.py pass 5): the scratch listing fits in the gap (or continues only into a registered tail it branches
+# to), ends in a terminator, reads no register that is undefined at a function entry. First case:
+# 0x82689770, the first PC boot's "Call to invalid or unregistered function".
+"0x921BE460" = { }  # 2 instructions, gap sweep
+
+# Complete functions in unclaimed gaps without a pointer the pointer sweep sees (tools/gap_sweep.py pass 6): the scratch listing fits in the gap (or continues only into a registered tail it branches
+# to), ends in a terminator, reads no register that is undefined at a function entry. First case:
+# 0x82689770, the first PC boot's "Call to invalid or unregistered function".
+"0x921BE468" = { }  # 2 instructions, gap sweep
+
+# Code pointers into unclaimed gaps, stored in data (vtables, callback tables) or built in code (lis/addi:
+# callbacks passed at run time), accepted by tools/pointer_fixpoint.py pass 1: the scratch listing fits
+# in the gap (or continues only into a registered function it branches to: "then the registered tail"),
+# ends in a terminator and reads no register that is undefined at a function entry. The comment says
+# where the pointer is stored ("pointer at") or built ("built at", inside the code range).
+# 0x920A3A38 is not a function: an SEH scope label: branches of its parent reach it and the instruction before runs into it.

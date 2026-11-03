@@ -29,7 +29,7 @@ BASE = 0x92000000  # hexic-nx
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--image', default=os.path.join(ROOT, 'out', 'renut_image.bin'))
-    ap.add_argument('--code', default='9208E000:92589AD4')
+    ap.add_argument('--code', default='9204D000:922526E4')
     ap.add_argument('--all', action='store_true', help='also the BODY hits')
     a = ap.parse_args()
     img = open(a.image, 'rb').read()

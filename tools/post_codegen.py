@@ -131,8 +131,8 @@ def main():
     run(tool('fp_sign_ops.py'), '--gen', gen)
     run(tool('leaf_dead_stores.py'), '--gen', gen, '--image', IMAGE)
     run(tool('single_floats.py'), '--gen', gen)
-    # hexic2-nx: this game's memcpy and memset (Katamari's by unique shape, out/renut_map/kat_to_hx2.json).
-    run(tool('inline_memcalls.py'), '--gen', gen, '--memcpy', '920FEE90', '--memset', '920FD8E0')
+    # hexichd-nx: this game's memcpy and memset (Hexic 2's bytes, 37 of 37 words at memset's; memcpy by its first instructions and its 243 calls).
+    run(tool('inline_memcalls.py'), '--gen', gen, '--memcpy', '920A9A90', '--memset', '920A5AB0')
     run(tool('vec_unaligned_stores.py'), '--gen', gen)
     # banjo-nx (2026-10-16, CPU codegen agent): the read-only constants ro_constants.py could not see because a label
     # stood between the base register's constant and the load (loop heads): followed over the control-flow graph.

@@ -117,7 +117,11 @@ def type_of(reg):
 # tools/inline_memcalls.py wraps a constant-size memcpy / memset call as REX_MEMCPY_CONST(n, sub_X(ctx, base)); (the
 # helper runs the call when it must). A localized copy keeps the plain call (its callees are reached through their
 # own localized or hand-written forms, which the wrapper would hide), so the wrapper is taken off where the text is read.
-MEMCALL_WRAP = re.compile(r'\bREX_MEM(?:CPY|SET)_CONST\(\d+, ((?:__imp__)?sub_[0-9A-F]{8}\(ctx, base\))\);')
+# hexic2-nx (2026-11-04): and leaves a mark, MEMCALL_MARK, for the copy to keep the same host fill. A port with hand-written
+# memcpy / memset natives never saw this: here the copy ran the guest routine where the original's host fill leaves r4-r12
+# alone, so every copy with such a call was slower than its original and the guard called it a difference (r4 or r6, scratch).
+MEMCALL_WRAP = re.compile(r'\bREX_MEM(CPY|SET)_CONST\((\d+), ((?:__imp__)?sub_[0-9A-F]{8}\(ctx, base\))\);')
+MEMCALL_MARK = re.compile(r' /\*memcall (CPY|SET) (\d+)\*/')
 
 
 # banjo-nx (2026-10-23): tools/inline_leaves.py gives each generated file static copies of tiny leaves of other files
@@ -146,7 +150,8 @@ def plain_r1(line):
 def plain_calls(line):
     line = plain_r1(line)
     if 'REX_MEM' in line:
-        line = MEMCALL_WRAP.sub(r'\1;', line)
+        line = MEMCALL_WRAP.sub(lambda m: m.group(3) + ';' + ('' if m.group(3).startswith('__imp__')
+                                                             else ' /*memcall %s %s*/' % (m.group(1), m.group(2))), line)
     if 'REX_INL(' in line or 'inl_sub_' in line:  # the macro form (REX_INL(sub_X)) as the generated text has it
         line = INLINE_LEAF.sub(lambda m: (m.group(1) or m.group(2)) + '(ctx, base)', line)
     return line
@@ -496,7 +501,7 @@ ONLY_GOTO = re.compile(r'^\tgoto (loc_[0-9A-F]{8});$')
 ANY_GOTO = re.compile(r'\bgoto (loc_[0-9A-F]{8});')
 ONLY_RETURN = re.compile(r'^\t+(?:return;|\{ return; \})$')
 # A statement that is nothing but a call (or the two alternative calls of a promoted indirect call).
-ONLY_CALL = re.compile(r'^\t+(?:[A-Za-z_]\w*\(ctx, base\);|REX_CALL_INDIRECT_FUNC(?:_AT)?\([^;]*\);|'
+ONLY_CALL = re.compile(r'^\t+(?:[A-Za-z_]\w*\(ctx, base\);(?: /\*memcall \w+ \d+\*/)?|REX_CALL_INDIRECT_FUNC(?:_AT)?\([^;]*\);|'
                        r'ppc_trap\(ctx, base[^;]*\);)$|^\tif \(REX_PROMOTED_IS\(')
 SWITCH_LINE = re.compile(r'^\t(?:case \d+:|default:)$|^\t\t(?:goto loc_[0-9A-F]{8};|__builtin_trap\(\);.*)$')
 
@@ -767,6 +772,7 @@ def localize(index, hooks, reach, root, what, opts, out_dir, quiet=False, hand=N
     member_set = set(members)
     externs = set()
     stats = {'calls_closed': 0, 'calls_open': 0, 'synced': []}
+    memcall_regs = set()  # what the memcpy / memset routines write where the copy and the original fill by host code
 
     def call_reach(m):
         """(what the callee and everything under it mention, what they can change, is it a copy of this header)."""
@@ -798,6 +804,14 @@ def localize(index, hooks, reach, root, what, opts, out_dir, quiet=False, hand=N
         stats['synced'].append((len(out_regs), len(in_regs)))
         if closed:
             stats['calls_closed'] += 1
+            mem = MEMCALL_MARK.match(m.string, m.end())
+            if mem and b not in hand:
+                # hexic2-nx (2026-11-04): as REX_MEM*_CONST in the recompiled original: the host fill, or the routine when
+                # it must run. The logged forms run the routine (BANJO_HOT_MEM*_CONST), so the guard compares no scratch
+                # register that routine writes (the skip set below).
+                memcall_regs.update(change)
+                return ('{ ' + before + 'if (!BANJO_HOT_MEM%s_CONST(S, %s)) { f_%s(ctx, base, s); if (s.Stopped()) return; }%s }'
+                        % (mem.group(1), mem.group(2), b, after))
             if b in hand:
                 # The hand-written native first; the generated copy of the callee when it declines. katamari-nx
                 # (2026-10-30 evening): what the callee may change is loaded back after EITHER path. banjo-nx's
@@ -816,6 +830,7 @@ def localize(index, hooks, reach, root, what, opts, out_dir, quiet=False, hand=N
     # call and the load in the callee are the same value) and constant arguments reach the callee's code. Not a
     # function that can call itself, and not a large one with several call sites (the copy would only grow).
     calls_to = {m: 0 for m in members}
+    host_filled = {m: 0 for m in members}
     callees_of = {}
     for name in members:
         callees_of[name] = set()
@@ -825,6 +840,8 @@ def localize(index, hooks, reach, root, what, opts, out_dir, quiet=False, hand=N
                 if b in member_set:
                     calls_to[b] += 1
                     callees_of[name].add(b)
+                    if MEMCALL_MARK.match(l, m.end()):
+                        host_filled[b] += 1
 
     def reaches_itself(name):
         seen, stack = set(), list(callees_of[name])
@@ -843,6 +860,9 @@ def localize(index, hooks, reach, root, what, opts, out_dir, quiet=False, hand=N
     # The generated copy of a function with a hand-written native only runs when the native declines: out of line and
     # cold (inlined, it took registers away from the hand-written path: every call then saved five pairs of them).
     forced -= set(hand)
+    # hexic2-nx (2026-11-04): the same for a memcpy / memset every call of which the host fill answers.
+    host_only = {m for m in members[1:] if calls_to[m] and host_filled[m] == calls_to[m]}
+    forced -= host_only
 
     declarations = []
     # Blocks: straight runs of statements. A block starts at a function's first statement, at every label and after
@@ -914,7 +934,7 @@ def localize(index, hooks, reach, root, what, opts, out_dir, quiet=False, hand=N
                     body.append(('\tif (s.Stopped()) return;', block))
             if localized:
                 how = ('[[gnu::always_inline]] static inline' if name in forced
-                       else '[[gnu::noinline, gnu::cold]] static' if name in hand else 'static')
+                       else '[[gnu::noinline, gnu::cold]] static' if name in hand or name in host_only else 'static')
                 head = (f'template <class S>\n{how} '
                         f'void f_{name}(PPCContext& __restrict ctx, uint8_t* base, [[maybe_unused]] S& s)')
                 declarations.append(head + ';')
@@ -954,13 +974,18 @@ def localize(index, hooks, reach, root, what, opts, out_dir, quiet=False, hand=N
     skip = set()
     for m in hand_members:
         skip |= set(funcs[m]['written']) - hand[m]['exact']
-    entry = (f'if (!::banjo::hand::n_{hand[root]["id"]}::Native(ctx, base, s)) f_{root}(ctx, base, s);'
+    # hexic2-nx (2026-11-04): both routines leave r3 (and r1) as they came, so those stay compared.
+    skip |= memcall_regs - {'r1', 'r3'}
+    entry =(f'if (!::banjo::hand::n_{hand[root]["id"]}::Native(ctx, base, s)) f_{root}(ctx, base, s);'
              if root in hand else f'f_{root}(ctx, base, s);')
     hand_note = ('' if not hand_members else
                  '\n// Hand-written natives in front of their copies (app/src/cpu/hot/banjo_hand_natives.h): '
                  + ', '.join(hand_members) + '.\n// Registers the guard does not compare for this hook (they leave '
                  'them as they found them): ' + (', '.join(sorted(skip, key=order)) or 'none') + '.')
-    left = ''.join(f'\n//   {k}: {v}' for k, v in sorted(left_out.items()))
+    if memcall_regs:
+        hand_note += ('\n// Constant-size memcpy / memset calls fill by host code as in the original; their routines\' scratch '
+                      'registers are not compared: ' + (', '.join(sorted(skip, key=order)) or 'none') + '.')
+    left =''.join(f'\n//   {k}: {v}' for k, v in sorted(left_out.items()))
     synced = ', '.join(f'{a}/{b}' for a, b in stats['synced'])
     top = f'''// {root}: {what or "localized copy"}.
 // GENERATED by tools/localize_native.py from app/generated/{funcs[root]["file"]} (do not edit; tools/post_codegen.py

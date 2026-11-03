@@ -20,7 +20,19 @@
 #include <rex/hook.h>
 #include <rex/ppc/context.h>
 
+#include <type_traits>
+
 #include "cpu/banjo_hot_common.h"
+
+// hexic2-nx (2026-11-04): a constant-size memcpy / memset call in a copy: the recompiled original's host fill
+// (tools/inline_memcalls.py). Not in the guard's logged forms: they run the routine, to record its stores.
+#if defined(REX_INLINE_MEMCALLS_OFF)
+#define BANJO_HOT_MEMCPY_CONST(S, n) false
+#define BANJO_HOT_MEMSET_CONST(S, n) false
+#else
+#define BANJO_HOT_MEMCPY_CONST(S, n) (!std::is_same_v<S, ::banjo::hot::Logged> && RexMemcpyConst<n>(ctx, base))
+#define BANJO_HOT_MEMSET_CONST(S, n) (!std::is_same_v<S, ::banjo::hot::Logged> && RexMemsetConst<n>(ctx, base))
+#endif
 
 // katamari-nx (2026-10-30): the in-run A/B's target in its off half (renut_engine/gpu/banjo_renut_tuning.cpp); target 70
 // sends every localized copy's hook to the generated original for that half.

@@ -23,7 +23,7 @@ BASE = 0x92000000  # hexic-nx: both Hexic images load at 0x92000000 (4 KB pages)
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--image', default=os.path.join(ROOT, 'out', 'renut_image.bin'))
-    ap.add_argument('--code', default='9208E000:92589AD4')
+    ap.add_argument('--code', default='9204D000:922526E4')
     a = ap.parse_args()
     img = open(a.image, 'rb').read()
     lo, hi = (int(x, 16) for x in a.code.split(':'))
