@@ -50,7 +50,7 @@ using namespace renut::gpu;
 // memory of resources N&B's code allocated itself.
 // katamari-nx: Beautiful Katamari's XMemFree is sub_824CAB98 (the hardware-device init frees with
 // `lis r4,0xB1800000; li r3,0; bl` to it where N&B's calls sub_822089F0).
-REX_IMPORT(__imp__sub_8224DBB0, GameXMemFree, void(u32, u32));
+REX_IMPORT(__imp__sub_9220FAE0, GameXMemFree, void(u32, u32));
 // The kernel's physical memory, as XPhysicalAlloc / XPhysicalFree use it.
 REX_IMPORT(__imp__MmAllocatePhysicalMemoryEx, MmAllocatePhysicalMemoryEx,
            u32(u32, u32, u32, u32, u32, u32));
@@ -1337,12 +1337,12 @@ u32 D3DDevice_CreateIndexBuffer_hook(u32 length, u32 usage, u32 format) {
 // Renut's texture and surface caches): SetTexture, the locks, SetRenderTarget, SetDepthStencilSurface, Resolve. Renut's own
 // objects (vertex and index buffers, declarations, shaders, the automatic surfaces: OwnsHeader or a record) keep Renut's
 // AddRef and Release.
-REX_IMPORT(__imp__sub_82254608, Rr6GuestAddRef, u32(u32));
-REX_IMPORT(__imp__sub_82254B88, Rr6GuestRelease, u32(u32));
-REX_IMPORT(__imp__sub_82254670, Rr6GuestGetType, u32(u32));
-REX_IMPORT(__imp__sub_82254720, Rr6GuestDestroy, void(u32));
-REX_IMPORT(__imp__sub_82252CB8, Rr6GuestCreateSurface, u32(u32, u32, u32, u32, u32));
-REX_IMPORT(__imp__sub_82252FC0, Rr6GuestSurfaceGetDesc, void(u32, u32));
+REX_IMPORT(__imp__sub_920B97B0, Rr6GuestAddRef, u32(u32));
+REX_IMPORT(__imp__sub_920B9D30, Rr6GuestRelease, u32(u32));
+REX_IMPORT(__imp__sub_920B9818, Rr6GuestGetType, u32(u32));
+REX_IMPORT(__imp__sub_920B98C8, Rr6GuestDestroy, void(u32));
+REX_IMPORT(__imp__sub_920B4578, Rr6GuestCreateSurface, u32(u32, u32, u32, u32, u32));
+REX_IMPORT(__imp__sub_920B4880, Rr6GuestSurfaceGetDesc, void(u32, u32));
 
 std::mutex g_hexichd_shadow_mutex;
 std::unordered_map<u32, u32> g_hexichd_texture_shadows;  // the game's texture -> its shadow header (kept per address)
