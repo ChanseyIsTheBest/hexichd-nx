@@ -49,7 +49,7 @@ class Image:
         if d[:2] != b'MZ' or d[pe:pe + 4] != b'PE\0\0':
             sys.exit('crt_signatures: %s is not a PE image dump' % path)
         sections, opt = struct.unpack_from('<H', d, pe + 6)[0], struct.unpack_from('<H', d, pe + 20)[0]
-        self.base = struct.unpack_from('<I', d, pe + 24 + 28)[0]
+        self.base = 0x92000000  # hexichd-nx: XDK 2.0.1884's linker left 0x400000 in the PE header; the XEX loads the image at 0x92000000
         self.code = []  # (rva, size) of executable sections
         table = pe + 24 + opt
         for i in range(sections):

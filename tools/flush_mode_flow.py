@@ -274,7 +274,7 @@ def addresses_in_image(path, wanted):
     if image[:2] != b'MZ' or image[pe:pe + 4] != b'PE\0\0':
         sys.exit('ERROR (post-codegen patch): flush_mode_flow: the image dump is not a PE image')
     sections, opt_size = struct.unpack_from('<H', image, pe + 6)[0], struct.unpack_from('<H', image, pe + 20)[0]
-    base = struct.unpack_from('<I', image, pe + 24 + 28)[0]
+    base = 0x92000000  # hexichd-nx: XDK 2.0.1884's linker left 0x400000 in the PE header; the XEX loads the image at 0x92000000
     found = {(base + struct.unpack_from('<I', image, pe + 24 + 16)[0]) & 0xFFFFFFFF} & wanted
     table = pe + 24 + opt_size
     for i in range(sections):

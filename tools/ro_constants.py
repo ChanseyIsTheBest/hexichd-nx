@@ -114,7 +114,7 @@ def read_only_ranges(image):
     if image[:2] != b'MZ' or image[pe:pe + 4] != b'PE\0\0':
         sys.exit('ERROR (post-codegen patch): ro_constants: the image dump is not a PE image')
     sections, opt_size = struct.unpack_from('<H', image, pe + 6)[0], struct.unpack_from('<H', image, pe + 20)[0]
-    base = struct.unpack_from('<I', image, pe + 24 + 28)[0]
+    base = 0x92000000  # hexichd-nx: XDK 2.0.1884's linker left 0x400000 in the PE header; the XEX loads the image at 0x92000000
     table = pe + 24 + opt_size
     ranges = []
     for i in range(sections):

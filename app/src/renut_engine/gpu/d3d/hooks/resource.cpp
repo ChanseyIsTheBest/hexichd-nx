@@ -2015,5 +2015,4 @@ BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D08A8, AlignTextureDimensions_hook);  // D
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D0D38, GetMipTailLevelOffsetCoords_hook);  // D3D_GetMipTailLevelOffsetCoords  // rr6-nx: the game's own code (sub_822518B0, XDK 2135's headers)
 BANJO_RENUT_HOOK(sub_920BB9C0, Rr6Release);  // rr6-nx: a shader's own Release (the count at +4, data at +12): Renut's objects hexichd-nx: rr6 8224E758
 BANJO_RENUT_HOOK(sub_920BBFC8, Rr6Release);  // rr6-nx: a declaration's own Release (the count at +4): Renut's objects hexichd-nx: rr6 8224ED60
-BANJO_RENUT_UNHOOKED_HOOK(unlinked_82254EB8, Rr6IndexBufferUnlock);  // D3DIndexBuffer_Unlock  // rr6-nx: 4 instructions, reads +12; 2 sites
- hexichd-nx: this game does not link it
+BANJO_RENUT_UNHOOKED_HOOK(unlinked_82254EB8, Rr6IndexBufferUnlock);  // D3DIndexBuffer_Unlock  // rr6-nx: 4 instructions, reads +12; 2 sites hexichd-nx: this game does not link it
