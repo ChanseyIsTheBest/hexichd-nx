@@ -11,7 +11,9 @@
 #include <thread>
 
 #if REX_PLATFORM_SWITCH
+extern "C" {  // only <switch.h> wraps libnx's headers itself
 #include <switch/kernel/svc.h>
+}
 #endif
 
 #include "renut_engine/gpu/banjo_renut_tuning.h"

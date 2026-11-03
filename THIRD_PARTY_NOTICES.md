@@ -62,15 +62,7 @@ Catch2 (BSL-1.0).
 Everything needed to rebuild and relink the NRO with a modified version of either library is in this repository and in
 [docs/building.md](docs/building.md).
 
-## The installer page
-
-The installer page is its own repository, [katamari-nx-installer](https://github.com/ChanseyIsTheBest/katamari-nx-installer).
-Its WebAssembly shader translator is built from `app/thirdparty/reblue-XenosRecomp` and `tools/renut_hlsl_frontend.cpp` of
-this repository (with [Emscripten](https://emscripten.org): MIT and the University of Illinois/NCSA license); its other
-components are listed in its `NOTICES.md`.
-
 ## Trademarks
 
-Beautiful Katamari is a trademark of Bandai Namco Entertainment; the icon (`tools/switch/icon/katamari_icon.jpg`,
-`app/icon/app.ico`) is its cover artwork, © Bandai Namco. Nintendo Switch is a trademark of Nintendo. Xbox 360 is a
-trademark of Microsoft. This project is not affiliated with or endorsed by any of them.
+Hexic is a trademark of Microsoft. Nintendo Switch is a trademark of Nintendo. Xbox 360 is a trademark of Microsoft. This project is
+not affiliated with or endorsed by any of them.
