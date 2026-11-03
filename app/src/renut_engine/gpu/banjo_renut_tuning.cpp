@@ -351,6 +351,43 @@ REXCVAR_DEFINE_BOOL(banjo_deko3d_depth_handover_readonly, true, "Banjo/Enhanceme
                     "with the target bound, or the target's next whole clear (the texture takes the image). The "
                     "night_final city drew all 438 handed resolves a 10 s after all at such binds. Same pixels. "
                     "In-run A/B target 64");
+REXCVAR_DEFINE_BOOL(hexichd_depth_covers_colour, true, "Banjo/Enhancements",
+                    "rr6-nx (2026-11-02): a depth target smaller than the colour target bound over it grows to that "
+                    "size, once (the race draws 1440x800 over a depth surface made 1280x720, which the console's "
+                    "EDRAM allows). Off: black bars on Direct3D 12 and device lost on Vulkan, so it has no in-run A/B "
+                    "target; it runs only when the targets change, and adds nothing per draw");
+REXCVAR_DEFINE_BOOL(hexichd_depth_bias, true, "Banjo/Enhancements",
+                    "rr6-nx (2026-11-03): the game's depth bias reaches the GPU, as dynamic state set when its value "
+                    "changes; no value of it makes a pipeline. Off: as Renut had it, no bias at all. Needs a back end "
+                    "with dynamic depth bias: Vulkan and deko3d have it; Direct3D 12 only with the Agility SDK. In-run "
+                    "A/B target 72 (the off half draws with no bias)");
+REXCVAR_DEFINE_BOOL(hexichd_user_clip_plane, true, "Banjo/Enhancements",
+                    "rr6-nx (2026-11-03): the game's user clip plane (SetClipPlane, plane 0) reaches the shaders that "
+                    "need it, as the GPU and the emulated GPU clip with it; Renut stored it and never applied it. Off: "
+                    "each half of the reflection map holds only the last of its two views, so the car reflects the "
+                    "wrong scene and no sky. Costs one plane write per draw that has one on. In-run A/B target 76");
+REXCVAR_DEFINE_BOOL(hexichd_strip_markers, true, "Banjo/Enhancements",
+                    "rr6-nx (2026-11-03): an indexed strip's restart markers (index 0xFFFF) are kept out of the vertex "
+                    "range a draw converts and rewritten to the host's marker, as the GPU and the emulated GPU cut "
+                    "the strip there. Off: as Renut had it, the marker counted as vertex 65535: the strip ran on through "
+                    "the cut with a vertex read past the copy (torn meshes and wedges on the Switch, where a 32-bit "
+                    "index buffer restarts only at 0xFFFFFFFF; the PC's D3D12 cuts at 0xFFFF for any width), and the "
+                    "range converted the buffer's tail (65536 vertices a draw). In-run A/B target 77");
+REXCVAR_DEFINE_BOOL(hexichd_fetch_over_pointer, true, "Banjo/Enhancements",
+                    "rr6-nx (2026-11-03): a draw after SetTexture(NULL) samples the texture its fetch constant still holds, "
+                    "as the GPU and the emulated GPU do; Renut bound the null texture. Off: the game's bloom is lost, its "
+                    "second blur reading black, and lit surfaces are about a quarter too dark. One compare a slot read, on a "
+                    "null pointer only. In-run A/B target 75");
+REXCVAR_DEFINE_BOOL(hexichd_alpha_near_one, true, "Banjo/Enhancements",
+                    "rr6-nx (2026-11-03): an alpha test of >= 1 runs at >= 0.999. The game draws its foliage twice, >= 1 with "
+                    "depth and then > 0 for the edges, and the test reads the texture times the interpolated colour: an alpha that arrives just under 1 fails the "
+                    "exact compare: on NVIDIA GPUs the trees flickered. No 8-bit alpha below 1 passes (254/255 is 0.996). Ridge "
+                    "Racer 6 Recomp's use_fuzzy_alpha_epsilon has the same limit for this test. The threshold is a constant: "
+                    "no cost. In-run A/B target 74");
+REXCVAR_DEFINE_BOOL(hexichd_fog_nan_zero, true, "Banjo/Enhancements",
+                    "rr6-nx (2026-11-03): NaNs in float constant registers 21 and 22 (the game's FogPhaseY and FogPhaseZ) "
+                    "reach the shaders as 0. The console's multiply gives 0 for 0 times NaN, HLSL's gives NaN: off, the "
+                    "car at car select is black. Its cost: one compare per constant group copied. In-run A/B target 71");
 REXCVAR_DEFINE_BOOL(banjo_deko3d_depth24, true, "Banjo/Enhancements",
                     "deko3d renderer (2026-10-19, GPU): a D24S8 depth target (the shadow maps, small render-to-texture "
                     "targets) as 24-bit unorm depth with stencil, the Xenos's own format, instead of 32-bit float: half "
@@ -476,6 +513,32 @@ REXCVAR_DEFINE_BOOL(banjo_deko3d_barrier_lean, true, "Banjo/Enhancements",
                     "the texture cache (only a read after a write needs it invalidated, and that read's transition "
                     "does it), and a texture going from one read layout to another needs no barrier at all. Same "
                     "pixels");
+// rr6-nx (2026-11-03, from sasrt-nx): console A/Bs for a fault Ryujinx cannot show (it runs no two draws' work at once).
+REXCVAR_DEFINE_BOOL(banjo_deko3d_read_wait, false, "Banjo/Diagnostics",
+                    "deko3d renderer (sasrt-nx 2026-10-30, a console test): a texture moving to a read layout (rendered, "
+                    "then sampled) waits for the GPU to go idle and drops the texture cache itself (DkBarrier_Primitives), "
+                    "instead of deko3d's fragment barrier with the tiled cache's invalidate. Read at start")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(banjo_deko3d_write_wait, false, "Banjo/Diagnostics",
+                    "deko3d renderer (sasrt-nx 2026-10-30, a console test): a texture moving to a write layout (sampled, "
+                    "then rendered or cleared again) waits for the GPU to go idle (DkBarrier_Primitives) instead of "
+                    "deko3d's fragment barrier. Read at start")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(banjo_deko3d_clear_wait, false, "Banjo/Diagnostics",
+                    "deko3d renderer (sasrt-nx 2026-10-30, a console test): the GPU goes idle before each clear "
+                    "(DkBarrier_Primitives): a clear cannot start while draws before it still read the target. Read at "
+                    "start")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(banjo_deko3d_full_barriers, false, "Banjo/Diagnostics",
+                    "deko3d renderer (rr6-nx 2026-11-03, a console test): every barrier waits for the whole GPU, the copy "
+                    "engine included, and drops the image, shader, descriptor and L2 caches. Very slow. A fault that "
+                    "survives this is not GPU ordering. Read at start")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(banjo_deko3d_color_compression, true, "Banjo/Enhancements",
+                    "deko3d renderer (rr6-nx 2026-11-04, console test 10): colour targets get hardware compression "
+                    "(bandwidth). Ryujinx ignores it, so a compressed target sampled, copied or uploaded into wrongly "
+                    "shows only on the console: off there to test. Read at start")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_DEFINE_BOOL(banjo_deko3d_zcull, true, "Banjo/Enhancements",
                     "deko3d renderer (2026-10-18): hierarchical depth culling (Zcull) on the queue: tiles a draw cannot "
                     "pass the depth test in are skipped before shading. Same pixels");
@@ -911,7 +974,14 @@ const char *AbName(int target) {
   // katamari-nx (2026-10-30): Beautiful Katamari's CPU items (cpu/hot/banjo_hand_natives.h, cpu/banjo_hot_guest.h).
   case 69: return "Katamari's hand-written matrix natives (katamari_hand_matrix_*; off half: the generated copies)";
   case 70: return "the localized copies of the hot functions (localized.txt; off half: the generated originals)";
+  case 71: return "hexichd_fog_nan_zero (NaNs in the fog constants as 0)";  // rr6-nx (2026-11-03)
+  case 72: return "hexichd_depth_bias (off half: no depth bias)";  // rr6-nx (2026-11-03)
+  case 73: return "banjo_renut_game_gamma (off half: the output without the display's ramp)";  // rr6-nx (2026-11-03)
+  case 74: return "hexichd_alpha_near_one (off half: the alpha test of >= 1 exact)";  // rr6-nx (2026-11-03)
+  case 76: return "hexichd_user_clip_plane (off half: no user clip plane, the reflection map holds the wrong views)";
+  case 78: return "banjo_spin_yield (off half: a generated spin loop does not give way at its db16cyc)";  // hexic2-nx (2026-11-04)
   case 77: return "hexichd_strip_markers (off half: a strip's restart marker counts as vertex 65535: torn meshes on deko3d)";
+  case 75: return "hexichd_fetch_over_pointer (off half: a null texture pointer binds the null texture)";  // rr6-nx (2026-11-03)
   default: return "none";
   }
 }
@@ -1086,6 +1156,8 @@ void StatsGameFrame() {
     REXLOG_INFO("[renut] {}", fd);
   if (const std::string ta = ::renut::gpu::TextureAnswersReport(); !ta.empty())  // banjo-nx (2026-10-27)
     REXLOG_INFO("[renut] {}", ta);
+  if (const std::string dd = ::renut::gpu::DroppedDrawsReport(); !dd.empty())  // halo3-nx (2026-11-03)
+    REXLOG_WARN("[renut] {}", dd);
   if (const std::string dk = ::renut::gpu::DrawKindsReport(); !dk.empty())  // banjo-nx (2026-10-27)
     REXLOG_INFO("[renut] {}", dk);
   if (const std::string ss = ::renut::gpu::StateSourceReport(); !ss.empty())  // banjo-nx (2026-10-26)
@@ -1377,6 +1449,11 @@ bool Deko3DZcullOn() { return REXCVAR_GET(banjo_deko3d_zcull); }
 bool Deko3DMsaaPositionsOn() { return REXCVAR_GET(banjo_deko3d_msaa_positions); }  // 2026-10-30, from sasrt-nx
 bool Deko3DA2cDitherOn() { return REXCVAR_GET(banjo_deko3d_a2c_dither); }
 bool Deko3DStripRestartOn() { return REXCVAR_GET(banjo_deko3d_strip_restart); }
+bool Deko3DReadWaitOn() { return REXCVAR_GET(banjo_deko3d_read_wait); }    // rr6-nx (2026-11-03, from sasrt-nx)
+bool Deko3DWriteWaitOn() { return REXCVAR_GET(banjo_deko3d_write_wait); }
+bool Deko3DClearWaitOn() { return REXCVAR_GET(banjo_deko3d_clear_wait); }
+bool Deko3DFullBarriersOn() { return REXCVAR_GET(banjo_deko3d_full_barriers); }
+bool Deko3DColorCompressionOn() { return REXCVAR_GET(banjo_deko3d_color_compression); }  // rr6-nx (2026-11-04)
 bool Deko3DGpuRegionOn() { return REXCVAR_GET(banjo_deko3d_gpu_region); }
 bool Deko3DBarrierMergeOn() { return REXCVAR_GET(banjo_deko3d_barrier_merge); }
 bool Deko3DBarrierLeanOn() { return REXCVAR_GET(banjo_deko3d_barrier_lean); }
@@ -1392,17 +1469,6 @@ bool EarlyZOn() { return REXCVAR_GET(banjo_deko3d_early_z); }
 bool Gpr32On() { return REXCVAR_GET(banjo_deko3d_gpr32); }
 bool LightBranchOn() { return REXCVAR_GET(banjo_deko3d_light_branch); }
 bool SkinOnceOn() { return REXCVAR_GET(banjo_deko3d_skin_once); }
-REXCVAR_DEFINE_BOOL(hexichd_strip_markers, true, "Banjo/Enhancements",
-                    "rr6-nx (f21694b6): an indexed strip's restart markers (index 0xFFFF) are kept out of the vertex range a "
-                    "draw converts and rewritten to the host's marker, as the GPU and the emulated GPU cut the strip there. "
-                    "Off: as Renut had it, the marker counted as vertex 65535: the strip ran on through the cut with a vertex "
-                    "read past the copy (torn meshes on deko3d), and the range converted the buffer's tail (65536 vertices a "
-                    "draw). In-run A/B target 77");
-bool StripMarkersOn() {
-  static const bool on = REXCVAR_GET(hexichd_strip_markers);
-  return on && g_ab_off.load(std::memory_order_relaxed) != 77;
-}
-
 bool EagerKicksOn() {
   return REXCVAR_GET(banjo_deko3d_eager_kicks) && g_ab_off.load(std::memory_order_relaxed) != 18;
 }
@@ -1548,6 +1614,55 @@ void CountDeviceSwizzle(uint32_t frame) {
   Bump(g_device_swizzle[0], 1);
   if (g_device_swizzle_frame.exchange(frame, std::memory_order_relaxed) != frame)
     Bump(g_device_swizzle[1], 1);
+}
+
+bool DepthCoversColourOn() {
+  static const bool on = REXCVAR_GET(hexichd_depth_covers_colour);
+  return on;
+}
+
+bool FogNanZeroOn() {
+  static const bool on = REXCVAR_GET(hexichd_fog_nan_zero);
+  return on && g_ab_off.load(std::memory_order_relaxed) != 71;
+}
+
+float AlphaNearOne(uint32_t func, float threshold) {
+  static const bool key = REXCVAR_GET(hexichd_alpha_near_one);
+  if (func != 6)
+    return threshold;
+  const bool on = key && g_ab_off.load(std::memory_order_relaxed) != 74;
+  if (on && threshold >= 1.0f)
+    return 0.999f;
+  // A kept packet holds what was set before an A/B flip.
+  return !on && threshold == 0.999f ? 1.0f : threshold;
+}
+
+bool FetchOverPointerOn() {
+  static const bool on = REXCVAR_GET(hexichd_fetch_over_pointer);
+  return on && g_ab_off.load(std::memory_order_relaxed) != 75;
+}
+
+bool UserClipPlaneOn() {
+  static const bool on = REXCVAR_GET(hexichd_user_clip_plane);
+  return on && g_ab_off.load(std::memory_order_relaxed) != 76;
+}
+
+bool StripMarkersOn() {
+  static const bool on = REXCVAR_GET(hexichd_strip_markers);
+  return on && g_ab_off.load(std::memory_order_relaxed) != 77;
+}
+
+bool GameGammaAbOff() {
+  return g_ab_off.load(std::memory_order_relaxed) == 73;
+}
+
+bool DepthBiasKeyOn() {
+  static const bool on = REXCVAR_GET(hexichd_depth_bias);
+  return on;
+}
+
+bool DepthBiasOn() {
+  return DepthBiasKeyOn() && g_ab_off.load(std::memory_order_relaxed) != 72;
 }
 
 bool DepthHandOverReadOnlyOn() {

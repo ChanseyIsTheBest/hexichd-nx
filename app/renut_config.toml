@@ -28,12 +28,14 @@ fp_copy_pairs = true
 fp_copy_forwarding = true
 div_inline = true
 fp_moves_modeless = true
-# The register diet, this game's audits: docs/hexic2-notes.md, "Codegen options".
+# The register diet, this game's audits: docs/hexichd-notes.md, "Codegen options".
 # The register diet: this game's audits go here (tools/non_argument_audit.py, tools/diet_keep_list.py).
 #DIET#
 
-# setjmp / longjmp by shape (tools/ppc_dis.py): this game's go here.
-#SETJMP#
+# setjmp / longjmp (peggle2-nx's method, by shape; tools/ppc_dis.py), each the only one in the code range: setjmp 0x922133C0 has
+# `stfd f14,0(r3)` after a check of a hook word (`lwz r0,...; bnectr`), longjmp 0x922132A0 has `lfd f14,0(r7)` after `mr r7,r3`.
+setjmp_address = 0x922133C0
+longjmp_address = 0x922132A0
 
 project_name = "renut"
 file_path = "assets/default.xex"

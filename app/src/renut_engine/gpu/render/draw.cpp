@@ -12,6 +12,8 @@
 #include <bit>
 #include <cmath>
 #include <condition_variable>
+#include <deque>       // rr6-nx (2026-11-03): the texture dump's writer queue
+#include <filesystem>  // rr6-nx (2026-11-03): the texture dump's folder
 #include <cstring>
 #include <limits>
 #include <map>
@@ -119,6 +121,33 @@ REXCVAR_DEFINE_BOOL(banjo_renut_kick_reuse, true, "Banjo/Enhancements",
 REXCVAR_DEFINE_BOOL(banjo_renut_fetch_data_unread, true, "Banjo/Enhancements",
                     "Renut's renderer on deko3d: a draw whose shaders fetch nothing by address gets fetch data address "
                     "and size 0 (they never read them) instead of a new allocation's, and no fetch binding")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+// rr6-nx (2026-11-03): DiagCameraNote, below.
+REXCVAR_DEFINE_BOOL(hexichd_diag_camera, false, "Banjo/Diagnostics",
+                    "Diagnostic: a log line a frame with the first main-target draw's world-view-projection (c50-c53) "
+                    "and how many of the frame's main-target draws had a NaN or a value over 1e7 in it")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_INT32(hexichd_diag_paint_frames, 0, "Banjo/Diagnostics",
+                     "Diagnostic (DiagPaintNote): every this many frames, a log line per pixel shader that samples a cube "
+                     "(the car paint and glass) with its first draw's pixel constants c30-c34: on the console, whether the "
+                     "reflection strengths the CPU sets match the emulator's. 0: off")
+    .range(0, 100000)
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_STRING(hexichd_diag_texture_dump, "", "Banjo/Diagnostics",
+                      "Diagnostic (DiagTextureDumpLocked, from sasrt-nx's shadow dump): \"first,every,windows,frames\": "
+                      "from <first> seconds after start, every <every> seconds, <windows> windows of <frames> consecutive "
+                      "frames (e.g. \"240,30,3,2\") in which every texture the car-paint draw samples (level 0, every "
+                      "layer) is copied out of the GPU and written to texture_dump/ next to the executable as raw texels "
+                      "(tools/texture_dump_view.py). Empty: off");
+REXCVAR_DEFINE_INT32(hexichd_diag_texture_dump_all, 0, "Banjo/Diagnostics",
+                     "Diagnostic, with hexichd_diag_texture_dump: 0 dumps the car-paint draws' textures only; N dumps every "
+                     "distinct texture any draw of a window's frames samples (the scenery, the sky, the cables, the "
+                     "tower's video), at most N a window (a render target once a frame), textures over 2048x1024 "
+                     "skipped. 150 and one frame a window is about 40 MB a window");
+REXCVAR_DEFINE_INT32(hexichd_diag_geometry_frames, 0, "Banjo/Diagnostics",
+                     "Diagnostic (DiagGeometryNote): every this many frames, a log line for each indexed draw with hashes "
+                     "of its indices and converted vertices. 0: off")
+    .range(0, 100000)
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_DEFINE_BOOL(banjo_renut_whole_buffers, true, "Banjo/Enhancements",
                     "Renut's renderer (2026-10-26, API-level stage 2, Unleashed's bindings): a draw whose every stream "
@@ -570,6 +599,9 @@ struct Bound {
   ConstantUpload pushed_vs, pushed_ps;
   bool blend_constant_set = false;
   float blend_constant[4] = {};
+  // rr6-nx (2026-11-03, hexichd_depth_bias): the device words SetDrawDepthBias last set.
+  bool depth_bias_set = false;
+  u32 depth_bias_scale = 0, depth_bias_offset = 0, depth_bias_float24 = 0;
 
   // State as the draws last set it on the list, which most draws in a row
   // share (the viewport, the zero stream, the memexport buffer): setting it
@@ -697,6 +729,40 @@ void SetIndexBuffer(plume::RenderCommandList *cmd, const plume::RenderIndexBuffe
 // The blend constant (RB_BLEND_RED..ALPHA) the draw's blend controls read, or
 // false if none reads it. The host has a single constant for BLEND_FACTOR, so a
 // colour factor that reads the constant alpha gets the alpha in rgb as well.
+// rr6-nx (2026-11-03, hexichd_depth_bias, A/B 72): the game's depth bias, which the setters stored and no draw read. Dynamic state, never in
+// the pipeline key: this game sets a fresh slope value for about 13 draws a frame, which keyed on pipelines made about 770 a second (Ridge
+// Racer 6 Recomp's measurement). Set only when its words change. The units are the reference's (draw_util's
+// GetD3D10IntegerPolygonOffset, pipeline_cache's slope): the slope register is in 1/16 subpixels; the constant is in the depth format's
+// units, rounded away from 0, as "if the offset is used at all, primitives need to be separated". No rounding of the slope, which Recomp's
+// depth_bias_fix does to save pipelines and which would change the picture.
+void SetDrawDepthBias(plume::RenderCommandList *cmd, const d3d::Device &dev) {
+  static const bool on = banjo::renut_gpu::DepthBiasKeyOn() && Video::Device()->getCapabilities().dynamicDepthBias;
+  if (!on)
+    return;
+  u32 scale = 0, offset = 0;
+  // PA_SU_SC_MODE_CNTL's polygon offset enables, front (bit 11) and back (bit 12). The setters write both faces alike.
+  if ((u32(dev.m_ControlPacket.ModeControl) & 0x1800u) && banjo::renut_gpu::DepthBiasOn()) {
+    const auto *words = reinterpret_cast<const be_u32 *>(dev.m_PointPacket);
+    scale = words[0];
+    offset = words[1];
+  }
+  const u32 float24 = (u32(dev.m_DestinationPacket.DepthInfo) >> 16) & 1;  // RB_DEPTH_INFO: D24FS8
+  if (g_bound.depth_bias_set && g_bound.depth_bias_scale == scale && g_bound.depth_bias_offset == offset &&
+      g_bound.depth_bias_float24 == float24)
+    return;
+  g_bound.depth_bias_set = true;
+  g_bound.depth_bias_scale = scale;
+  g_bound.depth_bias_offset = offset;
+  g_bound.depth_bias_float24 = float24;
+  const float polygon_offset = std::bit_cast<float>(offset);
+  const float magnitude = std::fabs(polygon_offset);
+  int32_t constant = float24 ? int32_t(std::ceil(magnitude * float(1u << 21))) << 3
+                             : int32_t(std::ceil(magnitude * float((1u << 24) - 1)));
+  if (polygon_offset < 0.0f)
+    constant = -constant;
+  cmd->setDepthBias(float(constant), 0.0f, std::bit_cast<float>(scale) * (1.0f / 16.0f));
+}
+
 // banjo-nx (2026-10-27, render thread night): whether DrawBlendConstant finds a factor reading the constant (its first
 // loop): a fact of the key alone.
 bool BlendConstantUsed(const PipelineKey &key) {
@@ -1634,8 +1700,15 @@ bool GatherTargets(const GuestDevice &device, Targets &t) {
     t.colors[t.color_count++] = surface;
   }
   HostSurface *depth = GetHostSurfaceLocked(device.U32(d3d::kDeviceOffsetDepthStencil));
-  if (depth && depth->depth)
+  if (depth && depth->depth) {
+    // rr6-nx (2026-11-02, hexichd_depth_covers_colour): a colour target larger than the depth surface under it.
+    if (t.color_count && depth->scale == t.colors[0]->scale &&
+        (depth->width < t.colors[0]->width || depth->height < t.colors[0]->height) &&
+        banjo::renut_gpu::DepthCoversColourOn())
+      depth = GrowDepthToColourLocked(device.U32(d3d::kDeviceOffsetDepthStencil), depth, t.colors[0]->width,
+                                      t.colors[0]->height);
     t.depth = depth;
+  }
   if (!t.color_count && !t.depth)
     return false;
   const HostSurface *first = t.color_count ? t.colors[0] : t.depth;
@@ -2042,6 +2115,26 @@ ViewportState ComputeViewportSlow(const GuestDevice &device, const Targets &t) {
 // ---------------------------------------------------------------------------
 
 // Where a draw's float constant registers are (ReplayConstants).
+// rr6-nx (2026-11-03, hexichd_user_clip_plane): this draw's user clip plane in the shared constants' point_state, which a
+// draw of anything but points leaves free (no shader but the point sprite one reads it, and those that clip read it
+// here; all zero clips nothing). Plane 0 only, all this game uses; the log says if a draw wants more, or if a shader
+// that does not clip (XenosRecomp main.cpp, userClipPlane) is drawn with one on.
+inline bool UserClipPlane(const d3d::Device &dev, uint64_t vs_hash, float plane[4]) {
+  const u32 bits = u32(dev.m_ControlPacket.ClipControl) & 0x3Fu;
+  if (!bits || !banjo::renut_gpu::UserClipPlaneOn())
+    return false;
+  for (u32 i = 0; i < 4; ++i)
+    plane[i] = float(dev.m_ClipPlanes[0][i]);
+  static uint64_t said[16];
+  static u32 said_count = 0;
+  if (said_count < 16 && std::find(said, said + said_count, vs_hash ^ bits) == said + said_count) {
+    said[said_count++] = vs_hash ^ bits;
+    RGPU_INFO("[renut] user clip plane: VS {:016X} planes {:02X}, plane 0 ({:.3f},{:.3f},{:.3f},{:.3f})", vs_hash, bits, plane[0],
+              plane[1], plane[2], plane[3]);
+  }
+  return true;
+}
+
 struct FloatConstants {
   const u8 *state = nullptr;
   const u8 *running = nullptr;  // null: all in 'state'
@@ -2084,6 +2177,385 @@ FloatConstants DrawFloatConstants(const u8 *state, const ReplayConstants *replay
   return c;
 }
 
+// rr6-nx (2026-11-03, hexichd_diag_camera): a bad frame in the course's fly-by lasts one frame and captures miss most of them.
+// A line a frame with the first main-target draw's world-view-projection (c50-c53 in this game's vertex shaders), so a
+// frame whose camera differs from those around it can be found in the log; and how many draws had a broken matrix.
+void DiagCameraNote(const FloatConstants &constants, const u32 *used, uint64_t vs_hash, const Targets &targets) {
+  static const bool on = REXCVAR_GET(hexichd_diag_camera);
+  if (!on || targets.width < 1000 || !targets.depth || !((used[50 / 32] >> (50 % 32)) & 1))
+    return;
+  float m[16];
+  bool bad = false;
+  for (u32 i = 0; i < 16; ++i) {
+    u32 word;
+    std::memcpy(&word, constants.Register(50 + i / 4) + (i % 4) * 4, 4);
+    word = __builtin_bswap32(word);
+    std::memcpy(&m[i], &word, 4);
+    bad |= !(std::abs(m[i]) <= 1e7f);
+  }
+  static uint64_t frame = UINT64_MAX;
+  static u32 draws = 0, broken = 0;
+  ++draws;
+  broken += bad;
+  if (frame == g_stream_cache_frame)
+    return;
+  RGPU_INFO("[camera] frame {} before: {} draws {} broken; vs {:016X} {} {} {} {} | {} {} {} {} | {} {} {} {} | {} {} {} {}",
+            g_stream_cache_frame, draws, broken, vs_hash, m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10],
+            m[11], m[12], m[13], m[14], m[15]);
+  frame = g_stream_cache_frame;
+  draws = broken = 0;
+}
+
+// rr6-nx (2026-11-03, hexichd_diag_paint_frames): the console's car paint looks like chrome (hard white and black patches) where
+// Ryujinx and the PC draw it matte. The paint shaders sample a cube (the reflection faces) and scale it by constants the
+// CPU sets (c31.y/.z the fresnel range, c32.x the scale in PS 22A0920B4D109C62). A line per cube-sampling pixel shader every
+// N frames with c30-c34 of its first main-target draw: the same values on the console as in the emulator put the fault on
+// the GPU side (the faces' contents, the normal map, the blend); different ones put it on the CPU (the machine copies).
+TextureFetch DeviceTextureFetch(const d3d::Device &dev, u32 r);
+// The 13 pixel shaders that sample a cube (the car paint in the race, the garage and the car select; 22A0920B4D109C62
+// is the race's main one), for the [paint] lines and the texture dump.
+static constexpr uint64_t kCubeShaders[] = {0x03232386464D9DB7ull, 0x08C9D7D372A22B5Eull, 0x1665925ABA65650Dull,
+                                           0x22A0920B4D109C62ull, 0x34D14F18E9D49E45ull, 0x501A2B6A5237BC99ull,
+                                           0x51E8275A885F7995ull, 0x80391EE201BC4392ull, 0x81B184F7D71B86A1ull,
+                                           0x9445DA8C3B064B31ull, 0xA17B08137F6A4732ull, 0xC1136A7A769975C5ull,
+                                           0xC657E51C7D437604ull};
+
+void DiagPaintNote(const d3d::Device &dev, const FloatConstants &ps_constants, uint64_t vs_hash, uint64_t ps_hash,
+                   const Targets &targets) {
+  static const int32_t every = REXCVAR_GET(hexichd_diag_paint_frames);
+  if (!every || targets.width < 1000 || !targets.depth || g_stream_cache_frame % uint64_t(every))
+    return;
+  u32 which = UINT32_MAX;
+  for (u32 i = 0; i < std::size(kCubeShaders); ++i)
+    if (kCubeShaders[i] == ps_hash)
+      which = i;
+  if (which == UINT32_MAX)
+    return;
+  static uint64_t frame = UINT64_MAX;
+  static u32 seen = 0;  // bit i: shader i logged this frame
+  if (frame != g_stream_cache_frame) {
+    frame = g_stream_cache_frame;
+    seen = 0;
+  }
+  if ((seen >> which) & 1)
+    return;
+  seen |= 1u << which;
+  float c[20];
+  for (u32 i = 0; i < 20; ++i) {
+    u32 word;
+    std::memcpy(&word, ps_constants.Register(30 + i / 4) + (i % 4) * 4, 4);
+    word = __builtin_bswap32(word);
+    std::memcpy(&c[i], &word, 4);
+  }
+  RGPU_INFO("[paint] f{} vs {:016X} ps {:016X} c30 {} {} {} {} | c31 {} {} {} {} | c32 {} {} {} {} | c33 {} {} {} {} | c34 {} {} {} {}",
+            g_stream_cache_frame, vs_hash, ps_hash, c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11],
+            c[12], c[13], c[14], c[15], c[16], c[17], c[18], c[19]);
+  // rr6-nx (2026-11-03 evening): the draw's texture fetch constants (the pixel slots that hold a texture) and a hash of
+  // each one's first 4 KB of level-0 guest data: whether the texture words and bytes the console's draws fetch are the
+  // emulator's (then the upload or the sampling is the fault) or not (then the game's code or the reads are).
+  if (which != 3)  // the main paint shader only (22A0920B4D109C62)
+    return;
+  for (u32 r = 0; r < 16; ++r) {
+    const TextureFetch f = DeviceTextureFetch(dev, r);
+    if (!f.IsTexture())
+      continue;
+    uint64_t h = 1469598103934665603ull;
+    const u32 page = f.BasePage();
+    if (const u8 *p = page ? GuestPhysicalPtr<const u8>(page << 12) : nullptr) {
+      for (u32 i = 0; i < 4096; ++i)
+        h = (h ^ p[i]) * 1099511628211ull;
+    }
+    RGPU_INFO("[paint-tex] f{} slot {} words {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} page {:05X} hash4k {:016X}",
+              g_stream_cache_frame, r, f.dword[0], f.dword[1], f.dword[2], f.dword[3], f.dword[4], f.dword[5], page, h);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// rr6-nx (2026-11-03 evening, hexichd_diag_texture_dump; the mechanism is sasrt-nx's shadow dump): the textures the car-paint
+// draw samples, as the GPU holds them. In a window, at the paint draw, level 0 of each texture in the draw's pixel slots
+// (every layer: a cube's six faces) is copied to a readback buffer of its own; when the frame slot's fence has been
+// waited the buffers are copied to memory and a writer thread writes each as a file (the render thread's own writes to
+// the console's SD card took sasrt-nx 76 s a frame). The console's chrome car and black cables look like textures
+// sampling as black or garbage, and only the console can show what its GPU holds.
+// ---------------------------------------------------------------------------
+struct TextureDump {
+  plume::RenderBuffer *buffer;
+  std::string name;
+  uint32_t rows, row_bytes, row_pitch;
+  int window;
+};
+std::vector<TextureDump> g_texture_dumps[kFramesInFlight];
+
+struct TextureDumpSpec {
+  int first = 0, every = 0, windows = 0, frames = 2;
+};
+const TextureDumpSpec &TextureDumpSpecGet() {
+  static const TextureDumpSpec spec = [] {
+    TextureDumpSpec out;
+    const std::string text = REXCVAR_GET(hexichd_diag_texture_dump);
+    int field = 0;
+    for (size_t at = 0; at < text.size(); ++field) {
+      const size_t comma = std::min(text.find(',', at), text.size());
+      const std::string item = text.substr(at, comma - at);
+      at = comma + 1;
+      if (field == 0)
+        out.first = std::atoi(item.c_str());
+      else if (field == 1)
+        out.every = std::atoi(item.c_str());
+      else if (field == 2)
+        out.windows = std::atoi(item.c_str());
+      else if (field == 3)
+        out.frames = std::max(1, std::atoi(item.c_str()));
+    }
+    return out;
+  }();
+  return spec;
+}
+
+// The time marks count from the process start (a static initialised when the executable loads), not from the first
+// paint draw: emu47 waited <first> seconds past the race's first draw and its windows never came.
+static const std::chrono::steady_clock::time_point g_texture_dump_start = std::chrono::steady_clock::now();
+
+// Called once per frame that has a paint draw: the window that frame is in (-1: none). A window opens at the first
+// such frame past its time mark (<first> seconds after start, then <every> seconds after the previous window opened:
+// a race that begins late gets its windows spaced all the same) and holds <frames> such frames.
+int TextureDumpWindow(uint64_t frame) {
+  const TextureDumpSpec &spec = TextureDumpSpecGet();
+  if (spec.windows <= 0)
+    return -1;
+  const auto start = g_texture_dump_start;
+  static int window = -1, frames_in = 0, next = 0;
+  static double next_open = double(spec.first);
+  const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+  if (window >= 0 && frames_in >= spec.frames)
+    window = -1;
+  if (window < 0 && next < spec.windows && seconds >= next_open) {
+    window = next++;
+    frames_in = 0;
+    next_open = seconds + double(std::max(1, spec.every));
+    RGPU_INFO("[rr6] texture dump window {} from frame {} ({:.0f} s, {} frames)", window, frame, seconds, spec.frames);
+  }
+  if (window >= 0)
+    ++frames_in;
+  return window;
+}
+
+constexpr size_t kTextureDumpQueued = size_t(48) << 20;
+struct TextureDumpWriter {
+  std::mutex mutex;
+  std::condition_variable wake, room;
+  std::deque<std::pair<std::string, std::vector<u8>>> queue;
+  size_t queued = 0;
+  uint64_t written = 0, written_bytes = 0, failed = 0;
+};
+TextureDumpWriter *g_texture_dump_writer = nullptr;
+
+void TextureDumpWriterMain() {
+  TextureDumpWriter *const w = g_texture_dump_writer;
+  for (;;) {
+    std::pair<std::string, std::vector<u8>> item;
+    {
+      std::unique_lock<std::mutex> lock(w->mutex);
+      w->wake.wait(lock, [w] { return !w->queue.empty(); });
+      item = std::move(w->queue.front());
+      w->queue.pop_front();
+    }
+    const std::string path = banjo::renut_gpu::NextToExecutable("texture_dump/" + item.first + ".bin").string();
+    bool ok = false;
+    if (FILE *f = std::fopen(path.c_str(), "wb")) {
+      std::setvbuf(f, nullptr, _IONBF, 0);
+      ok = std::fwrite(item.second.data(), 1, item.second.size(), f) == item.second.size();
+      ok = std::fclose(f) == 0 && ok;
+    }
+    bool drained;
+    uint64_t written, bytes, failed;
+    {
+      std::lock_guard<std::mutex> lock(w->mutex);
+      w->queued -= item.second.size();
+      ++(ok ? w->written : w->failed);
+      w->written_bytes += ok ? item.second.size() : 0;
+      drained = w->queue.empty();
+      written = w->written, bytes = w->written_bytes, failed = w->failed;
+    }
+    w->room.notify_all();
+    if (!ok)
+      RGPU_WARN("[rr6] texture dump: {} not written", path);
+    if (drained)
+      RGPU_INFO("[rr6] texture dump: {} files written ({:.1f} MB), {} failed, queue empty", written,
+                double(bytes) / 1048576.0, failed);
+  }
+}
+
+TextureDumpWriter &TextureDumpWriterGet() {
+  static TextureDumpWriter *const writer = [] {
+    auto *w = new TextureDumpWriter;
+    std::error_code ec;
+    std::filesystem::create_directories(banjo::renut_gpu::NextToExecutable("texture_dump"), ec);
+    g_texture_dump_writer = w;
+    banjo::renut_gpu::StartLongLivedThread(&TextureDumpWriterMain, 256 * 1024);
+    return w;
+  }();
+  return *writer;
+}
+
+// Every mip level of every layer of 't' into readback buffers of this frame slot (the cables, the foliage and the
+// car's blurred reflections sample the smaller levels, which a wrong level layout would spoil and level 0 not show).
+void DiagTextureDumpTextureLocked(VideoState &s, HostTexture *t, u32 slot_index, u32 guest_va, int window) {
+  if (!t || !t->texture || !t->alloc_width || !t->alloc_height)
+    return;
+  // The texture's own host format, not the guest format's usual host one: a resolve destination (the race's reflection
+  // cube, a render target) is made in the surface's format, and a footprint of another format removed the D3D12 device
+  // (pcdump5 named it: slot 3, 256x256x6, render target).
+  const plume::RenderFormat host =
+      t->host_format != plume::RenderFormat::UNKNOWN ? t->host_format : t->info.host;
+  const u32 bs = std::max(1u, plume::RenderFormatBlockWidth(host)), hbb = std::max(1u, plume::RenderFormatSize(host));
+  // A volume (a host 3D image: its depth is slices in one subresource, not layers) is not dumped: the car's paint
+  // samples none, and a copy of layer 1 of a 3D image removes the D3D12 device.
+  if (t->dimension == TextureDimension::Tex3D && !t->stacked) {
+    RGPU_INFO("[rr6] texture dump: slot {} {:08X} is a volume ({}x{}x{}): not dumped", slot_index, guest_va,
+              t->alloc_width, t->alloc_height, t->depth);
+    return;
+  }
+  const u32 layers = std::max(1u, t->depth);
+  const u32 levels = std::max(1u, t->mip_levels);
+  // Named before its copies: the last such line before a device removal (pcdump2 and pcdump4 died at the race's first
+  // window, after the car select's textures had dumped three times) is the texture whose copy D3D12 refused.
+  RGPU_INFO("[rr6] texture dump: slot {} {:08X} {}x{} depth {} levels {} (extra {}) fmt {} (guest's host {}) dim {} "
+            "stacked {} layout {} render target {} mips pending {}",
+            slot_index, guest_va, t->alloc_width, t->alloc_height, t->depth, t->mip_levels, t->extra_levels, int(host),
+            int(t->info.host), int(t->dimension), t->stacked, int(t->layout), t->render_target, t->mips_pending);
+  static uint32_t serial = 0;
+  for (u32 level = 0; level < levels && level < 16; ++level) {
+    const u32 w = std::max(1u, t->alloc_width >> level), h = std::max(1u, t->alloc_height >> level);
+    const u32 blocks_w = (w + bs - 1) / bs, blocks_h = (h + bs - 1) / bs;
+    const u32 row_bytes = blocks_w * hbb;
+    const u32 row_align = t->info.decoded_blocks ? 256u * bs : 256u;
+    const u32 row_pitch = (row_bytes + row_align - 1) / row_align * row_align;
+    const u32 copy_w = std::min(blocks_w * bs, w), copy_h = std::min(blocks_h * bs, h);
+    const u32 row_texels = row_pitch / hbb * bs;
+    for (u32 layer = 0; layer < layers && layer < 16; ++layer) {
+      std::unique_ptr<plume::RenderBuffer> buffer =
+          s.device->createBuffer(plume::RenderBufferDesc::ReadbackBuffer(uint64_t(row_pitch) * blocks_h));
+      if (!buffer)
+        return;
+      TransitionTextureLocked(t, plume::RenderTextureLayout::COPY_SOURCE);
+      // deko3d and Vulkan take the level's texel size and a box (emu48 proved it); D3D12 wants a block-compressed
+      // footprint rounded to whole blocks and no box (a 2x2 level of a BC3 cube removed the device in pcdump1), as
+      // Upload() gives it.
+      const bool vulkan_like = UsesVulkanBindings();
+      const plume::RenderBox box(0, 0, int32_t(copy_w), int32_t(copy_h));
+      s.command_list->copyTextureRegion(
+          plume::RenderTextureCopyLocation::PlacedFootprint(buffer.get(), host,
+                                                            vulkan_like ? copy_w : blocks_w * bs,
+                                                            vulkan_like ? copy_h : blocks_h * bs, 1, row_texels, 0),
+          plume::RenderTextureCopyLocation::Subresource(t->texture.get(), level, layer), 0, 0, 0,
+          vulkan_like ? &box : nullptr);
+      TransitionTextureLocked(t, plume::RenderTextureLayout::SHADER_READ);
+      g_bound.framebuffer = nullptr;
+      g_texture_dumps[s.frame].push_back(
+          {buffer.release(),
+           fmt::format("w{}_f{}_{:04}_s{}_{:08X}_{}x{}_fmt{}_m{}_l{}", window, g_stream_cache_frame, serial++,
+                       slot_index, guest_va, w, h, u32(host), level, layer),
+           blocks_h, row_bytes, row_pitch, window});
+    }
+  }
+}
+
+// At the frame's first draw of a cube-sampling paint shader (any of the 13: the race, the garage and the car select all
+// draw the car), in a window: every pixel slot holding a texture. With hexichd_diag_texture_dump_all, at every draw of a
+// window's frames: each texture not yet dumped in the window (a render target once a frame), up to the cap.
+void DiagTextureDumpLocked(const GuestDevice &device, uint64_t ps_hash) {
+  if (TextureDumpSpecGet().windows <= 0)
+    return;
+  static const int all = REXCVAR_GET(hexichd_diag_texture_dump_all);
+  const bool paint = std::find(std::begin(kCubeShaders), std::end(kCubeShaders), ps_hash) != std::end(kCubeShaders);
+  if (!all && !paint)
+    return;
+  VideoState &s = State();
+  static uint64_t frame = UINT64_MAX;
+  static int window = -1, seen_window = -1;
+  static bool paint_done = false;
+  static std::unordered_set<uint64_t> seen;  // the window's textures: address, or address and frame for a target
+  if (frame != g_stream_cache_frame) {
+    frame = g_stream_cache_frame;
+    window = TextureDumpWindow(frame);
+    paint_done = false;
+    if (window != seen_window) {
+      seen.clear();
+      seen_window = window;
+    }
+  }
+  if (window < 0)
+    return;
+  if (!all && paint_done)
+    return;  // the first paint draw of the frame only
+  u32 dumped = 0;
+  for (u32 r = 0; r < 16; ++r) {
+    const u32 va = device.U32(d3d::kDeviceOffsetTextures + r * 4);
+    if (!va)
+      continue;
+    HostTexture *t = FindHostTextureLocked(va);
+    if (!t)
+      continue;
+    if (all) {
+      if (seen.size() >= size_t(all) || uint64_t(t->alloc_width) * t->alloc_height > 2048u * 1024u)
+        continue;
+      const uint64_t key = t->render_target ? (uint64_t(va) | (frame << 32)) : uint64_t(va);
+      if (!seen.insert(key).second)
+        continue;
+    }
+    DiagTextureDumpTextureLocked(s, t, r, va, window);
+    ++dumped;
+  }
+  if (paint)
+    paint_done = true;
+  if (dumped)
+    RGPU_INFO("[rr6] texture dump: frame {} window {} ps {:016X}: {} textures queued{}", frame, window, ps_hash, dumped,
+              all ? fmt::format(" ({} of {} in the window)", seen.size(), all) : std::string());
+}
+
+// The slot's fence has been waited: its readbacks to memory and to the writer.
+void DiagTextureDumpCompleteLocked(uint32_t slot) {
+  std::vector<TextureDump> &list = g_texture_dumps[slot];
+  if (list.empty())
+    return;
+  TextureDumpWriter &writer = TextureDumpWriterGet();
+  uint32_t queued = 0, dropped = 0;
+  for (TextureDump &d : list) {
+    const size_t bytes = size_t(d.row_bytes) * d.rows;
+    bool take;
+    {
+      std::unique_lock<std::mutex> lock(writer.mutex);
+      take = writer.room.wait_for(lock, std::chrono::seconds(3),
+                                  [&] { return writer.queued == 0 || writer.queued + bytes <= kTextureDumpQueued; });
+      if (take)
+        writer.queued += bytes;
+    }
+    const auto *data = take ? static_cast<const u8 *>(d.buffer->map()) : nullptr;
+    if (data) {
+      std::vector<u8> texels(bytes);
+      for (uint32_t y = 0; y < d.rows; ++y)
+        std::memcpy(texels.data() + size_t(y) * d.row_bytes, data + size_t(y) * d.row_pitch, d.row_bytes);
+      d.buffer->unmap();
+      {
+        std::lock_guard<std::mutex> lock(writer.mutex);
+        writer.queue.emplace_back(std::move(d.name), std::move(texels));
+      }
+      writer.wake.notify_one();
+      ++queued;
+    } else {
+      if (take) {
+        std::lock_guard<std::mutex> lock(writer.mutex);
+        writer.queued -= bytes;
+      }
+      ++dropped;
+    }
+    Video::RetireLocked(std::unique_ptr<plume::RenderBuffer>(d.buffer));
+  }
+  RGPU_INFO("[rr6] texture dump: {} textures queued for writing, {} dropped (hexichd_diag_texture_dump)", queued, dropped);
+  list.clear();
+}
+
 // Float constants go by groups of four registers (64 bytes): the unit m_Pending
 // marks dirty, and the one a replayed draw takes from its snapshot or from the
 // running device (FloatConstants::Register), so a group's bytes are contiguous.
@@ -2114,6 +2586,22 @@ constexpr u32 kConstantGroupBytes = 4 * 16;
     lane = std::byteswap(lane);
   std::memcpy(swapped, lanes, kConstantGroupBytes);
 #endif
+}
+
+// rr6-nx (2026-11-03, hexichd_fog_nan_zero, A/B 71): Shader Model 3's multiply gives 0 for 0 times anything, NaN included; the console has
+// it, and so does the emulated renderer, while XenosRecomp's shaders multiply as HLSL does. At car select the game's FogPhaseY and
+// FogPhaseZ (registers 21 and 22 of both banks) are NaN, multiplied by 0: the fog terms came out NaN and the car's paint black. Giving
+// every multiply the rule would add work to every pixel; only these registers hold NaN (docs/rr6-notes.md), so they are cleared where
+// they are copied. A group's little-endian lanes in normal memory, not the write-combined upload: this reads them.
+constexpr u32 kFogPhaseGroup = 5;  // registers 20 to 23
+inline void ClearFogPhaseNans(u8 *swapped) {
+  u32 lanes[8];
+  std::memcpy(lanes, swapped + 16, sizeof(lanes));  // registers 21 and 22
+  for (u32 &lane : lanes) {
+    if ((lane & 0x7FFFFFFFu) > 0x7F800000u)
+      lane = 0;
+  }
+  std::memcpy(swapped + 16, lanes, sizeof(lanes));
 }
 
 // The groups holding a register the shader reads.
@@ -2351,8 +2839,15 @@ UploadAllocation UploadFloatConstants(const FloatConstants &constants, const u32
   for (uint64_t remaining = groups; remaining;) {
     const u32 group = u32(std::countl_zero(remaining));
     remaining &= ~(uint64_t(1) << (63 - group));
-    CopyAndSwapGroup(constants.Register(group * 4), last.bytes + group * kConstantGroupBytes,
-                     out + group * kConstantGroupBytes);  // banjo-nx (2026-10-28)
+    if (group == kFogPhaseGroup && banjo::renut_gpu::FogNanZeroOn()) {
+      alignas(16) u8 fog[kConstantGroupBytes];
+      CopyAndSwapGroup(constants.Register(group * 4), last.bytes + group * kConstantGroupBytes, fog);
+      ClearFogPhaseNans(fog);
+      std::memcpy(out + group * kConstantGroupBytes, fog, kConstantGroupBytes);
+    } else {
+      CopyAndSwapGroup(constants.Register(group * 4), last.bytes + group * kConstantGroupBytes,
+                       out + group * kConstantGroupBytes);  // banjo-nx (2026-10-28)
+    }
   }
   // Every register of those groups is in the upload, with the bytes it has
   // now.
@@ -2575,6 +3070,8 @@ void PushFloatConstants(plume::RenderCommandList *cmd, const FloatConstants &con
       // banjo-nx (2026-10-28): both copies from one NEON load (CopyAndSwapGroup).
       CopyAndSwapGroup(constants.Register(group * 4), last.bytes + group * kConstantGroupBytes,
                        reinterpret_cast<u8 *>(lanes + k * (kConstantGroupBytes / 4)));
+      if (group == kFogPhaseGroup && banjo::renut_gpu::FogNanZeroOn())  // rr6-nx (2026-11-03, hexichd_fog_nan_zero)
+        ClearFogPhaseNans(reinterpret_cast<u8 *>(lanes + k * (kConstantGroupBytes / 4)));
       last.valid[group / 8] |= 0xFu << (group % 8 * 4);
       for (u32 q = 0; q < 4; ++q)
         last.lit_owner[group * 4 + q] = nullptr;  // banjo-nx (2026-10-27): the device's bytes now
@@ -2860,6 +3357,22 @@ void PushSharedConstants(plume::RenderCommandList *cmd, const SharedConstants &s
 
 TextureFetch DeviceTextureFetch(const d3d::Device &dev, u32 r) {
   return TextureFetch::FromGuest(dev.m_Constants.TextureFetch[r]);
+}
+
+// rr6-nx (2026-11-03, hexichd_fetch_over_pointer, A/B 75): the texture a slot samples. The GPU reads the fetch constant and never
+// the device's pointer, and SetTexture(NULL) leaves the fetch constant as it was, so a draw after it still samples that
+// texture. Ridge Racer 6's second bloom blur draws so: with the null texture it wrote zeros over the glow, and every lit
+// surface came out about a quarter too dark. The slot's last texture is the one those fetch words came from.
+u32 g_fetch_owner[d3d::kTextureFetchSlots] = {};
+inline u32 SlotTextureVa(const GuestDevice &device, u32 r) {
+  const u32 va = device.U32(d3d::kDeviceOffsetTextures + r * 4);
+  if (va) {
+    g_fetch_owner[r] = va;
+    return va;
+  }
+  if (!g_fetch_owner[r] || !banjo::renut_gpu::FetchOverPointerOn())
+    return 0;
+  return DeviceTextureFetch(device.dev(), r).IsTexture() ? g_fetch_owner[r] : 0;
 }
 
 // banjo-nx (deko3d renderer, docs/deko3d-renderer.md): the sampler words hold the sampler id where a texture handle has
@@ -3223,7 +3736,7 @@ void FillTextures(const GuestDevice &device, u32 fetch_mask, SharedConstants &sc
     const u32 r = u32(std::countr_zero(bits));
     if (!draw_fetches)
       slots.f[r] = DeviceTextureFetch(dev, r);
-    const u32 va = device.U32(d3d::kDeviceOffsetTextures + r * 4);
+    const u32 va = SlotTextureVa(device, r);
     if (!va)
       continue;
     if (objs && ((objs->mask >> r) & 1)) {
@@ -3241,7 +3754,7 @@ void FillTextures(const GuestDevice &device, u32 fetch_mask, SharedConstants &sc
   for (u32 bits = fetch_mask; bits; bits &= bits - 1) {
     const u32 r = u32(std::countr_zero(bits));
     const TextureFetch &fetch = fetches[r];
-    const u32 texture_va = device.U32(d3d::kDeviceOffsetTextures + r * 4);
+    const u32 texture_va = SlotTextureVa(device, r);
     const auto *header = texture_va ? GuestPtr<const d3d::BaseTexture>(texture_va) : nullptr;
     const bool memo = banjo::renut_gpu::CpuMemosOn() && header;
     if (all_memo && !memo)
@@ -3638,6 +4151,7 @@ struct Geometry {
   u32 first_index = 0;
   i32 base_vertex = 0;
   u32 whole_base = 0;
+  const void *diag_indices = nullptr;  // rr6-nx (2026-11-03): DiagGeometryNote
 };
 
 // Reads 'count' guest indices into g_indices.
@@ -3832,6 +4346,7 @@ bool CachedIndexDraw(const IndexKey &key, const DrawCall &call, Geometry &g) {
   g.vertex_range = c.max_index + 1;
   g.indexed = true;
   g.index_count = c.index_count;
+  g.diag_indices = c.copy.cpu;  // rr6-nx (2026-11-03)
   g.index_view = plume::RenderIndexBufferView(
       c.copy.Ref(), c.bytes,
       c.wide ? plume::RenderFormat::R32_UINT : plume::RenderFormat::R16_UINT);
@@ -3887,7 +4402,7 @@ bool PrepareGeometry(const GuestDevice &device, const DrawCall &call, Geometry &
   u32 lo = 0, max_index = 0;  // host indices are g_indices - lo, the largest max_index
   IndexKey index_key{};
   bool cacheable_indices = false;
-  // rr6-nx (f21694b6, hexichd_strip_markers here): the strip's restart markers among g_indices, and the guest's marker value.
+  // rr6-nx (2026-11-03, hexichd_strip_markers): the strip's restart markers among g_indices, and the guest's marker value.
   const bool strip = !expand && (call.primitive == kLineStrip || call.primitive == kTriangleStrip);
   u32 markers = 0, guest_marker = 0xFFFFu;
   if (call.indexed) {
@@ -3935,13 +4450,14 @@ bool PrepareGeometry(const GuestDevice &device, const DrawCall &call, Geometry &
         hi = std::max(hi, index);
       }
     }
-    // rr6-nx (f21694b6; A/B 77): a strip's restart marker (the all-ones index of the guest format; plume restarts
-    // indexed strips at the host format's all-ones on every back end) is not a vertex. Taken into the range it made every
-    // strip with a cut read vertex 65535: the range became the buffer's tail (65536 vertices converted a draw), the host
-    // indices 32-bit, and 0xFFFF in a 32-bit index buffer restarts nothing on deko3d or Vulkan: the strip ran on through
-    // the cut and the cut's vertex read past the copy (torn meshes). D3D12 cuts at 0xFFFF for any width, so the PC never
-    // showed it; a whole-buffer copy keeps the guest's 16-bit indices, so the Switch showed it only until the copy was
-    // made. The markers are left out of the range and each is rewritten to the host format's marker below.
+    // rr6-nx (2026-11-03, hexichd_strip_markers, A/B 77): a strip's restart marker (the all-ones index of the guest format;
+    // plume restarts indexed strips at the host format's all-ones on every back end) is not a vertex. Taken into the
+    // range it made every strip with a cut read vertex 65535: the range became the buffer's tail (65536 vertices
+    // converted a draw), the host indices 32-bit, and 0xFFFF in a 32-bit index buffer restarts nothing on deko3d or
+    // Vulkan (their marker is 0xFFFFFFFF): the strip ran on through the cut and the cut's vertex read past the copy,
+    // the Switch's torn meshes and the fly-by's wedges. D3D12's cut value is 0xFFFF whatever the width, so the PC
+    // never showed it; a whole-buffer copy keeps the guest's 16-bit indices, so the Switch showed it only until the
+    // copy was made. The markers are left out of the range and each is rewritten to the host format's marker below.
     if (strip && hi == guest_marker && banjo::renut_gpu::StripMarkersOn()) {
       lo = UINT32_MAX;
       hi = 0;
@@ -3990,10 +4506,11 @@ bool PrepareGeometry(const GuestDevice &device, const DrawCall &call, Geometry &
     UploadAllocation alloc = Video::UploadsLocked().Allocate(bytes, 16);
     if (!alloc)
       return false;
-    // rr6-nx (f21694b6): each marker becomes lo + the host marker, so the rebase below (index - lo, in u32, then narrowed)
-    // leaves the host format's marker: 0xFFFF for 16-bit host indices (never a vertex: max_index is below it); for 32-bit
-    // ones 0xFFFFFFFF, except on D3D12, whose cut value is 0xFFFF for every width. The cached copy (TrackIndices) is rebased
-    // from the same g_indices.
+    // rr6-nx (2026-11-03, hexichd_strip_markers): each marker becomes lo + the host marker, so the rebase below (index - lo,
+    // in u32, then narrowed) leaves the host format's marker: 0xFFFF for 16-bit host indices (never a vertex: max_index
+    // is below it); for 32-bit ones 0xFFFFFFFF, except on D3D12, whose cut value is 0xFFFF for every width (a 32-bit
+    // strip of over 65535 vertices with a cut would lose a real index 0xFFFF there: none seen in this game, whose
+    // index buffers are 16-bit). The cached copy (TrackIndices) is rebased from the same g_indices.
     if (markers) {
       const u32 host_marker = wide && UsesVulkanBindings() ? 0xFFFFFFFFu : 0xFFFFu;
       for (u32 &index : g_indices)
@@ -4009,6 +4526,7 @@ bool PrepareGeometry(const GuestDevice &device, const DrawCall &call, Geometry &
     }
     g.indexed = true;
     g.index_count = u32(g_indices.size());
+    g.diag_indices = alloc.cpu;  // rr6-nx (2026-11-03)
     g.index_view = plume::RenderIndexBufferView(
         alloc.ref, bytes, wide ? plume::RenderFormat::R32_UINT : plume::RenderFormat::R16_UINT);
     if (cacheable_indices)
@@ -5517,6 +6035,69 @@ bool BindStreams(const GuestDevice &device, const DrawCall &call, const ShaderRe
   const plume::RenderInputSlot zero_slot(kZeroStreamSlot, 0);
   SetVertexBuffer(cmd, zero_view, zero_slot);
   return true;
+}
+
+// rr6-nx (2026-11-03, hexichd_diag_geometry_frames): the indexed draws of every Nth frame, with hashes of the guest's indices,
+// the host's and the converted vertices, to compare the PC's range path (clean) with the Switch's (torn meshes) by line.
+void DiagGeometryNote(const GuestDevice &device, const DrawCall &call, const ShaderRecord &vs, const u32 *shader_strides,
+                      const HostVertexLayout &layout, const Geometry &g, bool whole) {
+  static const int32_t every = REXCVAR_GET(hexichd_diag_geometry_frames);
+  if (!every || !call.indexed || call.up_indices || g_stream_cache_frame % uint64_t(every))
+    return;
+  static uint64_t frame = UINT64_MAX;
+  static u32 lines = 0;
+  if (frame != g_stream_cache_frame) {
+    frame = g_stream_cache_frame;
+    lines = 0;
+  }
+  if (lines++ >= 300)
+    return;
+  const auto *ib = GuestPtr<const d3d::IndexBuffer>(device.U32(d3d::kDeviceOffsetIndexBuffer));
+  if (!ib)
+    return;
+  const u32 common = ib->resource.Common;
+  const bool is32 = (common & d3d::kIndexBufferCommon32Bit) != 0;
+  const u8 *index_src = AddressPtr(ib->Address);
+  if (!index_src || !ReadIndices(index_src + size_t(call.start_index) * (is32 ? 4 : 2), call.count, is32,
+                                 d3d::IndexBufferEndian(common)))
+    return;
+  const auto fnv = [](const void *data, size_t bytes) {
+    uint64_t h = 1469598103934665603ull;
+    const u8 *p = static_cast<const u8 *>(data);
+    for (size_t i = 0; i < bytes; ++i)
+      h = (h ^ p[i]) * 1099511628211ull;
+    return h;
+  };
+  u32 lo = UINT32_MAX, hi = 0, resets = 0;
+  for (const u32 index : g_indices) {
+    lo = std::min(lo, index);
+    hi = std::max(hi, index);
+    resets += index == (is32 ? 0xFFFFFFFFu : 0xFFFFu);
+  }
+  const u32 host_size = g.index_view.format == plume::RenderFormat::R32_UINT ? 4u : 2u;
+  const uint64_t host_hash = g.diag_indices ? fnv(g.diag_indices, size_t(g.index_count) * host_size) : 0;
+  std::string line = fmt::format("[geom] f{} vs {:016X} prim {} n {} start {} base {} is32 {} lo {} hi {} resets {} "
+                                 "guest {:016X} host {} {} {:016X} first {} range {} whole {}",
+                                 g_stream_cache_frame, vs.hash, call.primitive, call.count, call.start_index,
+                                 call.base_vertex, is32 ? 1 : 0, lo, hi, resets, fnv(g_indices.data(), g_indices.size() * 4),
+                                 g.index_count, host_size, host_hash, g.first_vertex, g.vertex_range, whole ? 1 : 0);
+  static std::vector<u8> fresh;
+  for (u32 left = layout.used_mask; left; left &= left - 1) {
+    const u32 stream = u32(std::countr_zero(left));
+    const HostVertexStream &hs = layout.streams[stream];
+    if (!hs.used)
+      continue;
+    const StreamSource src = GetStreamSource(device, call, vs, shader_strides, stream);
+    const u32 first = src.stride ? g.first_vertex : 0;
+    u32 count = src.stride ? g.vertex_range : 1;
+    count = first < src.vertex_count ? std::min(count, src.vertex_count - first) : 0;
+    fresh.resize(size_t(count) * hs.host_stride);
+    if (count && src.data)
+      ConvertVertices(hs, src.data + size_t(first) * src.stride, src.stride, count, src.endian, fresh.data());
+    line += fmt::format(" | s{} stride {} host {} vertices {} count {} endian {} {:016X}", stream, src.stride,
+                        hs.host_stride, src.vertex_count, count, src.endian, fnv(fresh.data(), fresh.size()));
+  }
+  RGPU_INFO("{}", line);
 }
 
 // banjo-nx (2026-10-23, render-thread round): the stream cache keys BindStreams will look up for this draw (its strided
@@ -8452,6 +9033,7 @@ int FastDrawLocked(const u8 *device_state, const DrawCall &call, const ReplayCon
                                          declaration->layout_hash, geometry, whole_copies);
   if (!whole && !PrepareGeometry(device, call, geometry))
     return FastMiss(kFastGeometry);
+  DiagGeometryNote(device, call, *vs, shader_strides, declaration->layout, geometry, whole);  // rr6-nx (2026-11-03)
   // banjo-nx (2026-10-27, render thread night, A/B 30): a whole-buffer draw whose vertex shader never reads the vertex
   // index draws with its base vertex (the hardware adds it to each index) from copies bound at their start, rather than
   // from copies bound at the base and a vertex index offset in the shared constants: the same vertices, without a
@@ -8553,7 +9135,7 @@ int FastDrawLocked(const u8 *device_state, const DrawCall &call, const ReplayCon
         __builtin_prefetch(reinterpret_cast<const char *>(g_draw_resources->slot[r]) + 64);
         __builtin_prefetch(reinterpret_cast<const char *>(g_draw_resources->slot[r]) + 128);
       } else if (textures_inputs && r < d3d::kTextureFetchSlots) {
-        const u32 va = device.U32(d3d::kDeviceOffsetTextures + r * 4);
+        const u32 va = SlotTextureVa(device, r);
         if (const auto *header = va ? GuestPtr<const d3d::BaseTexture>(va) : nullptr)
           __builtin_prefetch(&header->Format);
         const TextureSlotMemo &m = TextureMemoSlot(va, fetches[r]);
@@ -8610,6 +9192,10 @@ int FastDrawLocked(const u8 *device_state, const DrawCall &call, const ReplayCon
     SetShared(sc, sc.point_state, kZero4);
     g_draw_sc_track.point = false;
   }
+  if (float clip_plane[4]; UserClipPlane(device.dev(), vs->hash, clip_plane)) {  // rr6-nx: see UserClipPlane
+    SetShared(sc, sc.point_state, clip_plane);
+    g_draw_sc_track.point = true;
+  }
   if (g_draw_sc_track.memexport) {
     std::memset(sc.memexport_streams, 0, sizeof(sc.memexport_streams));
     MarkShared(sc, sc.memexport_streams, sizeof(sc.memexport_streams));
@@ -8639,7 +9225,7 @@ int FastDrawLocked(const u8 *device_state, const DrawCall &call, const ReplayCon
     f.textures_valid = all_memo;
     for (u32 bits = texture_mask & ((1u << d3d::kTextureFetchSlots) - 1u); bits && all_memo; bits &= bits - 1) {
       const u32 r = u32(std::countr_zero(bits));
-      const u32 va = device.U32(d3d::kDeviceOffsetTextures + r * 4);
+      const u32 va = SlotTextureVa(device, r);
       f.texture_va[r] = va;
       f.texture_obj[r] = tex_objects ? g_draw_resources->slot[r] : nullptr;  // banjo-nx (2026-10-27, Phase A)
       if (tex_objects)
@@ -8750,7 +9336,7 @@ int FastDrawLocked(const u8 *device_state, const DrawCall &call, const ReplayCon
     // banjo-nx (2026-10-28, host packets): the same state, pixel shader drawn and first target: the same words.
     SetShared(sc, sc.booleans, pk->booleans);
     SetShared(sc, sc.alpha_test_func, pk->alpha_test_func);
-    SetShared(sc, sc.alpha_threshold, pk->alpha_threshold);
+    SetShared(sc, sc.alpha_threshold, banjo::renut_gpu::AlphaNearOne(pk->alpha_test_func, pk->alpha_threshold));
     alpha_test_func = pk->alpha_test_func;
   } else if ((fields & (kFieldBools | kFieldViewPackets)) || entries_changed || depth_only != f.depth_only ||
              targets_changed || verify) {
@@ -8771,6 +9357,7 @@ int FastDrawLocked(const u8 *device_state, const DrawCall &call, const ReplayCon
         threshold = 0.5f;
       }
     }
+    threshold = banjo::renut_gpu::AlphaNearOne(func, threshold);  // rr6-nx (2026-11-03, hexichd_alpha_near_one, A/B 74)
     if (verify && !((fields & (kFieldBools | kFieldViewPackets)) || entries_changed || depth_only != f.depth_only ||
                     targets_changed) &&
         (func != sc.alpha_test_func || threshold != sc.alpha_threshold ||
@@ -8924,6 +9511,11 @@ int FastDrawLocked(const u8 *device_state, const DrawCall &call, const ReplayCon
   }
   const FloatConstants vs_constants = DrawFloatConstants(device_state, replay, false);
   const FloatConstants ps_constants = DrawFloatConstants(device_state, replay, true);
+  DiagCameraNote(vs_constants, vs_used, vs->hash, targets);  // rr6-nx (2026-11-03)
+  if (ps) {
+    DiagPaintNote(device.dev(), ps_constants, vs->hash, ps->hash, targets);  // rr6-nx (2026-11-03)
+    DiagTextureDumpLocked(device, ps->hash);
+  }
 #if defined(PLUME_DEKO3D)
   g_diag_draw_no_ps = !ps;  // banjo-nx (2026-10-28, diagnostic)
   PushFloatConstants(cmd, vs_constants, vs_used, g_bound.pushed_vs, vs->entry, g_pushed_buffers.address,
@@ -9094,9 +9686,12 @@ int FastDrawLocked(const u8 *device_state, const DrawCall &call, const ReplayCon
     std::fill(std::begin(g_bound.constant_sets), std::end(g_bound.constant_sets), nullptr);
   }
   if (g_bound.pipeline != pipeline) {
+    if (!g_bound.pipeline)
+      g_bound.depth_bias_set = false;  // rr6-nx: after an internal pass, whose pipeline set its own bias
     cmd->setPipeline(pipeline);
     g_bound.pipeline = pipeline;
   }
+  SetDrawDepthBias(cmd, dev);  // rr6-nx (2026-11-03, hexichd_depth_bias)
   float blend_constant[4];
   if (f.blend_used && DrawBlendConstant(dev, *f.kp, blend_constant) &&
       !(g_bound.blend_constant_set && SameBytes<sizeof(blend_constant)>(blend_constant, g_bound.blend_constant))) {
@@ -9386,6 +9981,27 @@ void NoteDrawMerge(bool same_state, bool contiguous) {
   g_merge_same[g_prev_draw_kind < 3 ? g_prev_draw_kind : 2] += same_state;
   g_merge_contiguous[g_prev_draw_kind < 3 ? g_prev_draw_kind : 2] += contiguous;
 }
+// halo3-nx (2026-11-03), rr6-nx: draws that never reached the GPU, by why. These exits were silent.
+enum DropReason : uint32_t {
+  kDropShaderRecord, kDropHostShader, kDropTargets, kDropGeometry, kDropStreams, kDropAllocation, kDropPipeline, kDropCount
+};
+uint64_t g_dropped_draws[kDropCount] = {};
+std::string DroppedDrawsReport() {
+  uint64_t all = 0;
+  for (const uint64_t n : g_dropped_draws)
+    all += n;
+  if (!all)
+    return {};
+  std::string out = fmt::format("DRAWS NOT DRAWN: {} (no shader record {}, no host shader {}, no targets {}, geometry {}, "
+                                "exported streams {}, allocation {}, pipeline or framebuffer {})",
+                                all, g_dropped_draws[kDropShaderRecord], g_dropped_draws[kDropHostShader],
+                                g_dropped_draws[kDropTargets], g_dropped_draws[kDropGeometry],
+                                g_dropped_draws[kDropStreams], g_dropped_draws[kDropAllocation],
+                                g_dropped_draws[kDropPipeline]);
+  std::fill(std::begin(g_dropped_draws), std::end(g_dropped_draws), uint64_t(0));
+  return out;
+}
+
 std::string DrawKindsReport() {
   uint64_t all = 0;
   for (const DrawKindStats &k : g_kind_stats)
@@ -9723,6 +10339,7 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
     if (LogLimited(logged, 16)) {
       const u32 va = vs ? declaration_va : vs_va;
       const auto *words = GuestPtr<const be_u32>(va);
+      ++g_dropped_draws[kDropShaderRecord];
       RGPU_WARN("Draw dropped: {} {:08X} is not one the renderer knows (words {:08X} {:08X})",
                 vs ? "vertex declaration" : "vertex shader", va, words ? u32(words[0]) : 0,
                 words ? u32(words[1]) : 0);
@@ -9765,7 +10382,7 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
     const d3d::Device &pdev = device.dev();
     for (u32 bits = prefetch_textures; bits; bits &= bits - 1) {
       const u32 r = u32(std::countr_zero(bits));
-      const u32 va = device.U32(d3d::kDeviceOffsetTextures + r * 4);
+      const u32 va = SlotTextureVa(device, r);
       const bool fresh = !((fetches_valid >> r) & 1);
       if (fresh) {
         draw_fetches.f[r] = DeviceTextureFetch(pdev, r);
@@ -9893,7 +10510,7 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
 
   plume::RenderShader *host_vs = GetHostShader(vs);
   plume::RenderShader *host_ps = ps ? GetHostShader(ps) : nullptr;
-  if (!host_vs || (ps && !host_ps))
+  if ((!host_vs || (ps && !host_ps)) && ++g_dropped_draws[kDropHostShader])
     return false;  // missing from the shader cache (captured for the next build)
 
   // banjo-nx (2026-10-20, from sa2-nx, banjo_renut_chain_reuse): the previous chain draw's targets when the device's target words (bytes
@@ -9938,6 +10555,7 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
     }
   } else {
     if (!GatherTargets(device, targets)) {
+      ++g_dropped_draws[kDropTargets];
       g_targets_reuse.seq = 0;
       return false;
     }
@@ -10099,7 +10717,7 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
   for (u32 bits = textures_reused ? texture_mask & ((1u << d3d::kTextureFetchSlots) - 1u) : 0u; bits;
        bits &= bits - 1) {
     const u32 r = u32(std::countr_zero(bits));
-    const u32 va = device.U32(d3d::kDeviceOffsetTextures + r * 4);
+    const u32 va = SlotTextureVa(device, r);
     const auto *header = va ? GuestPtr<const d3d::BaseTexture>(va) : nullptr;
     textures_reused = header &&
                       (texture_fields_same ||
@@ -10172,7 +10790,7 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
       for (u32 r = 0; r < d3d::kTextureFetchSlots; ++r) {
         if (!(texture_mask & (1u << r)))
           continue;
-        const u32 va = device.U32(d3d::kDeviceOffsetTextures + r * 4);
+        const u32 va = SlotTextureVa(device, r);
         const auto *header = va ? GuestPtr<const d3d::BaseTexture>(va) : nullptr;
         if (header)
           std::memcpy(treuse.header[r], &header->Format, sizeof(treuse.header[r]));
@@ -10220,6 +10838,7 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
       alpha_threshold = 0.5f;
     }
   }
+  alpha_threshold = banjo::renut_gpu::AlphaNearOne(alpha_test_func, alpha_threshold);  // rr6-nx (2026-11-03, hexichd_alpha_near_one, A/B 74)
   SetShared(sc, sc.alpha_test_func, alpha_test_func);  // banjo-nx (2026-10-26)
   SetShared(sc, sc.alpha_threshold, alpha_threshold);
   // banjo-nx (2026-10-20, from sa2-nx, banjo_renut_chain_reuse): the previous chain draw's viewport when nothing ComputeViewport reads
@@ -10271,6 +10890,8 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
   SetShared(sc, sc.resolution_scale, targets.scale.Factor());
   SetShared(sc, sc.pad_1352[1], std::bit_cast<float>(InternalHeightsWord()));  // banjo-nx (2026-10-21): the shaders' codes 4 and 6
   SetShared(sc, sc.pixel_origin, viewport.pixel_origin);  // Renut upstream 574b488
+  float clip_plane[4];  // rr6-nx: UserClipPlane
+  bool has_clip_plane = false;
   if (call.primitive == kPointList) {
     // PA_SU_POINT_SIZE: height 0-15, width 16-31, half the size in 12.4 fixed
     // point (SetRenderState_PointSize 0x82635CC0 stores the size * 8);
@@ -10288,12 +10909,15 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
     point_state[2] = float(point_min_max & 0xFFFF) / minmax_scale;
     point_state[3] = float(point_min_max >> 16) / minmax_scale;
     SetShared(sc, sc.point_state, point_state);
+  } else if (UserClipPlane(dev, vs ? vs->hash : 0, clip_plane)) {
+    has_clip_plane = true;
+    SetShared(sc, sc.point_state, clip_plane);
   } else if (persistent_sc && g_draw_sc_track.point) {
     static constexpr float kZero4[4] = {};
     SetShared(sc, sc.point_state, kZero4);  // banjo-nx (2026-10-26): the last draw's
   }
   if (persistent_sc)
-    g_draw_sc_track.point = call.primitive == kPointList;
+    g_draw_sc_track.point = call.primitive == kPointList || has_clip_plane;
 
   Geometry geometry;
   // banjo-nx (2026-10-26): as a new block's, then the tessellated draw's words (into a copy, set below).
@@ -10312,9 +10936,11 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
     ++g_range_draws;
     if (call.tessellation ? !PrepareTessellation(device, call, geometry, tessellation)
                           : !PrepareGeometry(device, call, geometry)) {
+      ++g_dropped_draws[kDropGeometry];
       return false;
     }
   }
+  DiagGeometryNote(device, call, *vs, shader_strides, declaration->layout, geometry, whole);  // rr6-nx (2026-11-03)
   // The host draws the vertex range in use from vertex 0 (indices rebased to
   // it in PrepareGeometry); the guest's r0.x is the vertex index itself.
   if (!call.tessellation)
@@ -10333,6 +10959,7 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
   GpuStreams gpu_streams;
   if (!whole && !ConvertExportedStreamsLocked(s, device, call, *vs, shader_strides, *declaration, geometry,
                                               gpu_streams)) {
+    ++g_dropped_draws[kDropStreams];
     return false;
   }
 
@@ -10419,6 +11046,11 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
   static constexpr u32 kNoRegisters[8] = {};
   const u32 *vs_used = vs->entry ? vs->entry->floatConstants : kAllRegisters;
   const u32 *ps_used = !ps ? kNoRegisters : ps->entry ? ps->entry->floatConstants : kAllRegisters;
+  DiagCameraNote(vs_constants, vs_used, vs->hash, targets);  // rr6-nx (2026-11-03)
+  if (ps) {
+    DiagPaintNote(device.dev(), ps_constants, vs->hash, ps->hash, targets);  // rr6-nx (2026-11-03)
+    DiagTextureDumpLocked(device, ps->hash);
+  }
   // banjo-nx (2026-10-19, banjo_deko3d_push_constants): pushed, except for draws point_sprite_gs expands (it reads
   // SharedConstants through its address).
 #if defined(PLUME_DEKO3D)
@@ -10530,7 +11162,8 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
     }
     banjo::renut_gpu::CountSharedConstants(false);
   }
-  if ((!fetch_alloc && !fetch_none) || (!pushed && (!vs_alloc || !ps_alloc || !sc_alloc)) || !memexport)
+  if (((!fetch_alloc && !fetch_none) || (!pushed && (!vs_alloc || !ps_alloc || !sc_alloc)) || !memexport) &&
+      ++g_dropped_draws[kDropAllocation])
     return false;
 
   // banjo-nx (2026-10-20, from sa2-nx, banjo_renut_chain_reuse): a chain draw takes the previous draw's key when nothing MakeKey reads
@@ -10662,7 +11295,7 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
   // banjo-nx (2026-10-28, banjo_deko3d_depth_handover_readonly): whether this draw writes depth or stencil.
   const bool draw_depth_writes = ((key.depth_control & 2) && (key.depth_control & 4)) ||
                                  ((key.depth_control & 1) && ((key.stencil_ref_mask >> 16) & 0xFF) != 0);
-  if (!pipeline || !BindTargets(targets, draw_depth_writes))
+  if ((!pipeline || !BindTargets(targets, draw_depth_writes)) && ++g_dropped_draws[kDropPipeline])
     return false;
 #if defined(PLUME_DEKO3D)
   // banjo-nx (2026-10-21, banjo_deko3d_async_variants): a pipeline drawing a shader's generic variant while its own was
@@ -10691,12 +11324,15 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
     // banjo-nx (2026-10-23, batch 6): not on deko3d (two calls a bind that did nothing there).
     if (!IsDeko3D() && !banjo::renut_gpu::record::IsProxy(cmd))
       banjo::renut_gpu::BeforePipelineBind(pipeline);
+    if (!g_bound.pipeline)
+      g_bound.depth_bias_set = false;  // rr6-nx: after an internal pass, whose pipeline set its own bias
     cmd->setPipeline(pipeline);
     g_bound.pipeline = pipeline;
     // Vulkan: a pipeline without the constant as dynamic state overwrites it.
     if (IsVulkan())
       g_bound.blend_constant_set = false;
   }
+  SetDrawDepthBias(cmd, dev);  // rr6-nx (2026-11-03, hexichd_depth_bias)
   float blend_constant[4];
   if (DrawBlendConstant(dev, key, blend_constant) &&
       !(g_bound.blend_constant_set &&
@@ -10852,6 +11488,7 @@ void ReleaseCacheCopiesLocked(uint32_t slot) {
 }
 
 void CompleteMemExportsLocked(uint32_t slot) {
+  DiagTextureDumpCompleteLocked(slot);  // rr6-nx (2026-11-03)
   SlotExports &exports = g_exports[slot];
   if (exports.pending.empty())
     return;
@@ -10996,7 +11633,7 @@ void UnleashedCensusDraw(const GuestDevice &device, const DrawCall &call, u32 te
     count(g_ucensus.indices, HookResourceKind(header) == 2, written);
   }
   for (u32 bits = texture_mask & ((1u << d3d::kTextureFetchSlots) - 1u); bits; bits &= bits - 1) {
-    const u32 header = device.U32(d3d::kDeviceOffsetTextures + u32(std::countr_zero(bits)) * 4);
+    const u32 header = SlotTextureVa(device, u32(std::countr_zero(bits)));
     if (!header)
       continue;
     const u8 kind = HookResourceKind(header);
@@ -11411,7 +12048,10 @@ void ClearTargets(const Targets &t, u32 flags, const plume::RenderRect &rect, co
     return;
   // banjo-nx (2026-10-21, internal resolution): colour and depth targets of different scales (the HUD's UI target with
   // the scene's depth, the post-processing buffers at 1x with it) cleared one at a time, each at its own scale.
-  if (t.depth && t.color_count && t.depth->scale != t.scale) {
+  // rr6-nx (2026-11-02): also a depth target smaller than the colour target (this game clears its 1440x800 buffer, flags 0x3F,
+  // with the 1280x720 depth bound): a framebuffer's attachments cannot be smaller than it. Vulkan lost the device on that one;
+  // Direct3D 12 let it pass. One at a time, as here, is the same pixels on both.
+  if (t.depth && t.color_count && (t.depth->scale != t.scale || t.depth->width < t.width || t.depth->height < t.height)) {
     Targets colors = t;
     colors.depth = nullptr;
     if (flags & 0xF)

@@ -197,7 +197,7 @@ REXCVAR_DEFINE_BOOL(banjo_spin_yield, true, "Banjo/Enhancements",
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 // The call tools/spin_yield.py puts at each db16cyc of the generated code.
-void rex_spin_yield() {
+extern "C" void rex_spin_yield() {
   static const bool on = banjo::EnhancementActive(banjo::EnhancementGroup::kCpu, REXCVAR_GET(banjo_spin_yield));
   if (!on || banjo::renut_gpu::g_ab_off.load(std::memory_order_relaxed) == 78) {
     return;

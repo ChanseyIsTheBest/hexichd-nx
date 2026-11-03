@@ -6,9 +6,10 @@ Ryujinx that one function took 97 % of its thread's samples and 57 % of a core. 
 Horizon does not time-slice threads of the same priority on a core, so it can sit in front of the worker it is waiting for. The instruction
 says "this is a spin", so here it gives way (rex_spin_yield, app/src/cpu/banjo_enhancements.cpp; key banjo_spin_yield, A/B target 78).
 
-Only a host call in a loop the guest wrote as a delay: no guest register or memory changes. A declaration in the statement, not the pch, so
-a new list of functions does not rebuild everything. Idempotent. Run before the copies: localize_native.py refuses a function with a host
-call in it, so these stay generated functions.
+Only a host call in a loop the guest wrote as a delay: no guest register or memory changes. Declared at the top of each file it is used in,
+with C linkage stated: inside a function, the declaration would take the linkage of DEFINE_REX_FUNC's body, which is extern "C" in a
+normal build and not in a coverage build (tools/pch_coverage.py). Not in the pch, so a new list of functions does not rebuild everything.
+Idempotent. Run before the copies: localize_native.py refuses a function with a host call in it, so these stay generated functions.
 
   python tools/spin_yield.py --gen app/generated [--report]
 """
@@ -17,7 +18,9 @@ import glob
 import os
 import re
 
-MARK = '{ void rex_spin_yield(); rex_spin_yield(); }'
+CALL = 'rex_spin_yield();'
+DECLARATION = 'extern "C" void rex_spin_yield();  // tools/spin_yield.py'
+OLD_CALL = '{ void rex_spin_yield(); rex_spin_yield(); }'
 FUNC = re.compile(r'^\s*DEFINE_REX_FUNC\((sub_[0-9A-Fa-f]+)\)')
 
 
@@ -34,10 +37,9 @@ def main():
         if 'db16cyc' not in text:
             continue
         nl = '\r\n' if '\r\n' in text[:4000] else '\n'
-        lines = text.split(nl)
+        lines = [line for line in text.split(nl) if line.strip() != OLD_CALL]
         out = []
         current = None
-        touched = False
         for i, line in enumerate(lines):
             m = FUNC.match(line)
             if m:
@@ -45,12 +47,16 @@ def main():
             out.append(line)
             if line.strip().startswith('// db16cyc'):
                 functions[current] = functions.get(current, 0) + 1
-                if i + 1 >= len(lines) or MARK not in lines[i + 1]:
-                    out.append('\t' + MARK)
-                    touched = True
-        if touched and not a.report:
+                if i + 1 >= len(lines) or lines[i + 1].strip() != CALL:
+                    out.append('\t' + CALL)
+        if DECLARATION not in out:
+            # Before the first function, after the file's includes.
+            at = next(i for i, line in enumerate(out) if FUNC.match(line))
+            out.insert(at, DECLARATION)
+        new = nl.join(out)
+        if new != text and not a.report:
             with open(path, 'w', encoding='utf-8', errors='surrogateescape', newline='') as f:
-                f.write(nl.join(out))
+                f.write(new)
             changed += 1
     print(f'spin_yield: {sum(functions.values())} db16cyc in {len(functions)} functions ({", ".join(sorted(functions))}); {changed} files changed')
 

@@ -29,8 +29,8 @@ MAX_INSNS = 3000
 P2_TABLES = ((0x828DFDB8, 0x82600380, 101), (0x828E0278, 0x82600840, 20))
 # pacman-nx: the target's tables (tools/renut_state_tables.py: 101 + 20 records paired by default) and its code range
 # (title update 3, 2026-11-03; the base's were 0x8246A250, 0x8246A710 and 0x820F0000-0x82458B7C)
-TGT_TABLES = (0x9258BA60, 0x9258BF10)  # hexic2-nx: tools/renut_state_tables.py
-TGT_CODE = (0x9208E000, 0x92589AD4)
+TGT_TABLES = (0x92254438, 0x922548C8)  # hexichd-nx: tools/renut_state_tables.py, 97 + 20 rows
+TGT_CODE = (0x9204D000, 0x922526E4)  # hexichd-nx: tools/pe_sections.py
 
 
 def starts_of(gen):

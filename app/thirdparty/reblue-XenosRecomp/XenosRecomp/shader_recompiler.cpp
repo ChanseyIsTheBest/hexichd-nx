@@ -504,6 +504,14 @@ void ShaderRecompiler::recompile(const TextureFetchInstruction& instr, bool bicu
     if (!isPixelShader && instr.opcode != FetchOpcode::SetTextureLod && instr.dstRegister == 0)
         vertexIndexOverwritten = true;  // see recompile(const AluInstruction&)
 
+    // rr6-nx (2026-11-03, census, from vivapinata-nx): what a fetch names over its fetch constant, none of it honoured here:
+    // filters mag, min, mip (0 point, 1 linear, 2 base map, 3 as the constant), its own LOD bias, its anisotropy (7 = as the constant).
+    static const bool census_all = std::getenv("HEXICHD_FETCH_CENSUS_ALL") != nullptr;  // the check that the fields read at all
+    if (instr.opcode == FetchOpcode::TextureFetch &&
+        (census_all || instr.magFilter != 3 || instr.minFilter != 3 || instr.mipFilter != 3 || instr.lodBias != 0 || instr.anisoFilter != 7))
+        fetchCensus += fmt::format(" t{}:f{}{}{},lod{},aniso{}", uint32_t(instr.constIndex), uint32_t(instr.magFilter),
+            uint32_t(instr.minFilter), uint32_t(instr.mipFilter), int32_t(instr.lodBias), uint32_t(instr.anisoFilter));
+
     // setTexLOD stores the LOD that following useRegLod fetches sample at.
     if (instr.opcode == FetchOpcode::SetTextureLod)
     {
@@ -2475,6 +2483,8 @@ void ShaderRecompiler::recompile(const uint8_t* shaderData, const std::string_vi
     #elif defined(REBLUE_RECOMP)
         // Always define SV_Position so a skipped position-write block doesn't leave it undef.
         out += "\toPos = 0.0;\n";
+        if (userClipPlane)
+            out += "\toUserClip0 = 0.0;\n";
     #endif
 
         for (auto& [usage, usageIndex] : INTERPOLATORS)
@@ -3226,6 +3236,11 @@ void ShaderRecompiler::recompile(const uint8_t* shaderData, const std::string_vi
                         // passes through, unless the viewport transform is off: then it is in
                         // pixels (after what is left of the transform), mapped here to clip
                         // space over the whole render target, y down.
+                        // rr6-nx (2026-11-03, hexichd_user_clip_plane): the plane is in the guest's clip space, so before
+                        // anything below changes the position. The draw puts it where the point sprite state goes (a
+                        // draw of points has no plane here); all zero, as for a draw without one, clips nothing.
+                        if (userClipPlane)
+                            out += "\toUserClip0 = dot(oPos, g_UserClipPlane);\n";
                         out += "\tif (g_ScreenSpace != 0)\n\t{\n";
                         out += "\t\tfloat2 pixel = oPos.xy * g_ScreenScale + g_ScreenOffset * oPos.w;\n";
                         out += "\t\toPos.xy = pixel * float2(2.0, -2.0) / g_ViewportSize + float2(-1.0, 1.0) * oPos.w;\n";
@@ -3318,7 +3333,8 @@ void ShaderRecompiler::recompile(const uint8_t* shaderData, const std::string_vi
     if (size_t at = out.find(KILL_OUTPUT_PLACEHOLDER); at != std::string::npos)
     {
         out.replace(at, KILL_OUTPUT_PLACEHOLDER.size(),
-            hasVertexKill ? "\n#ifndef __spirv__\n\t, out float oKill : SV_CullDistance0\n#endif\n" : "");
+            std::string(hasVertexKill ? "\n#ifndef __spirv__\n\t, out float oKill : SV_CullDistance0\n#endif\n" : "") +
+            (userClipPlane && !isPixelShader ? "\n\t, out float oUserClip0 : SV_ClipDistance0\n" : ""));
     }
 
     // banjo-nx (2026-10-17): predicated blocks of register arithmetic as select() (banjo_pred_select.h). Off with

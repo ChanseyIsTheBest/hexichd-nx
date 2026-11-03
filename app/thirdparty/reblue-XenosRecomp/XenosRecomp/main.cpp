@@ -1,4 +1,5 @@
 #include "shader.h"
+#include "container_0e.h"
 #include "shader_recompiler.h"
 #include "dxc_compiler.h"
 #ifdef RENUT_RECOMP
@@ -135,6 +136,36 @@ int main(int argc, char** argv)
                 auto shaderContainer = reinterpret_cast<const ShaderContainer*>(fileData.get() + i);
                 size_t dataSize = shaderContainer->virtualSize + shaderContainer->physicalSize;
 
+                // feedingfrenzy-nx (2026-10-26): a version 0x0E container (XDK 2571; rr6-nx: this game's, XDK 2135) is keyed by its
+                // own hash and translated from its 0x11 form (container_0e.h).
+                if (container_0e::IsContainer0E(fileData.get() + i, fileSize - i))
+                {
+                    const uint8_t* original = fileData.get() + i;
+                    const size_t originalSize = size_t(container_0e::Rd(original, 4)) + container_0e::Rd(original, 8);
+                    XXH64_hash_t hash = XXH3_64bits(original, originalSize);
+                    auto shader = shaders.try_emplace(hash);
+                    if (shader.second)
+                    {
+                        std::vector<uint8_t> converted = container_0e::Convert(original);
+                        auto copy = std::make_unique<uint8_t[]>(converted.size());
+                        std::memcpy(copy.get(), converted.data(), converted.size());
+                        shader.first->second.data = copy.get();
+                        files.emplace_back(std::move(copy));
+#ifdef RENUT_RECOMP
+                        std::string stem = file.path().stem().string();
+                        if (containerIndex > 0)
+                            stem += fmt::format(".{}", containerIndex);
+                        shader.first->second.sourceName = std::move(stem);
+#endif
+                        foundAny = true;
+                    }
+#ifdef RENUT_RECOMP
+                    ++containerIndex;
+#endif
+                    i += originalSize;
+                    continue;
+                }
+
                 if ((shaderContainer->flags & 0xFFFFFF00) == 0x102A1100 &&
                     dataSize <= (fileSize - i) &&
                     shaderContainer->field1C == 0 &&
@@ -189,6 +220,10 @@ int main(int argc, char** argv)
 
                 thread_local ShaderRecompiler recompiler;
                 recompiler = {};
+                // rr6-nx (2026-11-03, hexichd_user_clip_plane): the vertex shaders drawn with a user clip plane on. Ridge
+                // Racer 6's reflection map: 979A583A3A5665B8, 087881A1C449B0D6 (the renderer logs every one it draws
+                // with a plane on, "user clip plane"; one not listed here is not clipped).
+                recompiler.userClipPlane = hash == 0x979A583A3A5665B8ull || hash == 0x087881A1C449B0D6ull;
                 recompiler.recompile(shader.data, include);
 
                 shader.specConstantsMask = recompiler.specConstantsMask;
@@ -201,6 +236,8 @@ int main(int argc, char** argv)
                     std::begin(shader.floatConstants));
                 shader.cbufLiterals = recompiler.cbufLiterals;  // banjo-nx
                 shader.shaderFlags = recompiler.shaderFlags;    // banjo-nx (banjo_gpu_depth_only)
+                if (!recompiler.fetchCensus.empty())  // rr6-nx (2026-11-03): one line a shader
+                    fmt::print(stderr, "fetch census {}_{:016X}:{}\n", recompiler.isPixelShader ? "ps" : "vs", hash, recompiler.fetchCensus);
                 if (recompiler.isPixelShader)
                 {
                     // banjo-nx (banjo_gpu_depth_only): the flags against the shader's own text (a kill is its only

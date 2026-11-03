@@ -29,6 +29,7 @@ struct ShaderRecompiler : StringBuffer
 {
     uint32_t indentation = 0;
     bool isPixelShader = false;
+    std::string fetchCensus;  // rr6-nx (2026-11-03): the texture fetches that name their own filters or LOD bias
     const uint8_t* constantTableData = nullptr;
     std::unordered_map<uint32_t, VertexElement> vertexElements;
     std::unordered_map<uint32_t, std::string> interpolators;
@@ -94,6 +95,7 @@ struct ShaderRecompiler : StringBuffer
     // sets PA_CL_CLIP_CNTL.vtx_kill_or). The grass kills its blades where the density map is
     // below their threshold.
     bool hasVertexKill = false;
+    bool userClipPlane = false;  // rr6-nx: set by the caller, this vertex shader writes SV_ClipDistance0
     // banjo-nx (banjo_gpu_depth_only, package 28): what a pixel shader does besides its colours, which a draw without
     // it would lose: SHADER_FLAG_PIXEL_KILL a kill instruction (clip), SHADER_FLAG_PIXEL_DEPTH a depth export (SV_Depth).
     // The alpha test and banjoBlendSkip are the draw's (the renderer knows them); memexport is memExportConstants.

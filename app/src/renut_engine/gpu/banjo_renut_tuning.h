@@ -236,7 +236,12 @@ bool Deko3DZcullOn();
 bool Deko3DMsaaPositionsOn();
 bool Deko3DA2cDitherOn();
 bool Deko3DStripRestartOn();
-bool StripMarkersOn();  // rr6-nx (f21694b6, hexichd_strip_markers, A/B 77)
+// rr6-nx (2026-11-03, from sasrt-nx): banjo_deko3d_read_wait, _write_wait, _clear_wait (console tests).
+bool Deko3DReadWaitOn();
+bool Deko3DWriteWaitOn();
+bool Deko3DClearWaitOn();
+bool Deko3DFullBarriersOn();  // banjo_deko3d_full_barriers (a console test)
+bool Deko3DColorCompressionOn();  // banjo_deko3d_color_compression (console test 10)
 bool Deko3DGpuRegionOn();  // banjo-nx (2026-10-28, h10): banjo_deko3d_gpu_region
 // banjo_deko3d_barrier_merge / _lean (2026-10-19, GPU): fewer pipeline drains and texture cache invalidations.
 bool Deko3DBarrierMergeOn();
@@ -358,6 +363,15 @@ void CountFetchAlignment(bool aligned);
 [[gnu::always_inline]] inline bool DepthHandOverOn() { return Latch().depth_handover; }
 // banjo-nx (2026-10-28, GPU block): banjo_deko3d_depth_handover_readonly (A/B 64).
 bool DepthHandOverReadOnlyOn();
+bool DepthCoversColourOn();  // rr6-nx (2026-11-02, hexichd_depth_covers_colour)
+bool FogNanZeroOn();  // rr6-nx (2026-11-03, hexichd_fog_nan_zero, A/B 71)
+bool FetchOverPointerOn();  // rr6-nx (2026-11-03, hexichd_fetch_over_pointer, A/B 75)
+bool UserClipPlaneOn();  // rr6-nx (2026-11-03, hexichd_user_clip_plane, A/B 76)
+bool StripMarkersOn();   // rr6-nx (2026-11-03, hexichd_strip_markers, A/B 77)
+bool GameGammaAbOff();  // rr6-nx (2026-11-03): banjo_renut_game_gamma's off half of A/B 73
+float AlphaNearOne(uint32_t func, float threshold);  // rr6-nx (2026-11-03, hexichd_alpha_near_one, A/B 74)
+bool DepthBiasKeyOn();  // rr6-nx (2026-11-03, hexichd_depth_bias): the pipelines' dynamic state
+bool DepthBiasOn();     // and its value this half (A/B 72: the off half draws with no bias)
 // banjo_deko3d_depth24 (2026-10-19, GPU): D24S8 depth targets as 24-bit unorm (render/format.cpp).
 [[gnu::always_inline]] inline bool Depth24On() { return Latch().depth24; }
 // banjo_deko3d_push_constants (2026-10-19, render-thread proposals 2 and 5): the float constants and SharedConstants

@@ -1,2 +1,5 @@
-# Named functions and function boundaries of the game (docs/, "Code generation").
+# hexichd-nx: named functions and function boundaries of Hexic HD (docs/hexichd-notes.md, "Code generation").
+# First codegen (2026-11-04): one "target not in any function", reached only by a tail jump from a thunk, right after a neighbour's padding
+# (tools/ppc_dis.py): 0x921B54E8 from 0x921BE194 (`addi r3,r3,4; b`).
 [functions]
+"0x921B54E8" = { }
