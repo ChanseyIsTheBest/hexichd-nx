@@ -20,8 +20,8 @@ New-Item -ItemType Directory -Force $out | Out-Null
 $logs = Join-Path $sd "logs"
 if (Test-Path $logs) { Remove-Item -Recurse -Force $logs }
 $env:DOTNET_ROOT = "D:\New folder\dotnet10"
-# hexic2-nx: this port's own shader cache in Ryujinx (banjo-nx docs/deko3d-renderer.md section 10: it keeps none for homebrew otherwise).
-$env:RYUJINX_HOMEBREW_SHADER_CACHE_ID = "0500000048584932"
+# hexichd-nx: this port's own shader cache in Ryujinx (banjo-nx docs/deko3d-renderer.md section 10: it keeps none for homebrew otherwise).
+$env:RYUJINX_HOMEBREW_SHADER_CACHE_ID = "0500000048584844"
 # katamari-nx (2026-10-31): the run's own start time ($p.StartTime filtered nothing: every run copied every capture
 # the SD had ever kept, ~800 MB a run, 19 GB in out/emu_runs).
 $started = Get-Date

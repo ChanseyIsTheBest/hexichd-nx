@@ -36,11 +36,11 @@ void ConfigurePaths(rex::PathConfig &paths) {
 #endif
   if (!paths.game_data_root.empty() && !fs::exists(paths.game_data_root / "default.xexp", ec)) {
     // The recompiled code is the title update's: the base XEX's image would not match it at all.
-    REXLOG_ERROR("[title update] {} has no default.xexp. hexic2-nx is built from the game's title update: put the update's "
+    REXLOG_ERROR("[title update] {} has no default.xexp. hexichd-nx is built from the game's title update: put the update's "
                  "default.xexp next to default.xex",
                  rex::path_to_utf8(paths.game_data_root));
     rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error,
-                              "hexic2-nx is built from the title update: put the update's default.xexp next to default.xex in the "
+                              "hexichd-nx is built from the title update: put the update's default.xexp next to default.xex in the "
                               "game folder.");
   }
 }

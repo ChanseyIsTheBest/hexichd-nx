@@ -61,7 +61,7 @@ static void InvalidFunctionTrap(PPCContext& ctx, uint8_t* base) {
   // function table, the nearest guest function at or below it (this game's code range; a diagnostic).
   if (FunctionDispatcher* dispatcher = GetBoundFunctionDispatcher()) {
     std::vector<std::pair<uintptr_t, uint32_t>> table;
-    for (uint32_t guest = 0x9208E000u; guest < 0x92589AD4u; guest += 4) {  // hexic2-nx: this game's code range
+    for (uint32_t guest = 0x9204D000u; guest < 0x922526E4u; guest += 4) {  // hexichd-nx: this game's code range
       if (PPCFunc* host = dispatcher->GetFunction(guest))
         table.emplace_back(reinterpret_cast<uintptr_t>(host), guest);
     }

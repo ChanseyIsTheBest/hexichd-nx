@@ -11,7 +11,7 @@
 #     README.txt, PACKAGE_NOTES.txt
 # Nothing of the game's data goes in (the NRO holds the recompiled code; the DKSH cache is compiled shader
 # code). -GameRoot, for the user's own SD card only: copies the extracted game and its default.xexp into
-# game_root. Never into git, never uploaded. Hexic 2 has no DLC supplied, so no dlc folder.
+# game_root. Never into git, never uploaded. Hexic HD has no DLC supplied, so no dlc folder.
 #   powershell -File tools/package_switch.ps1 -Name pgo_lto [-Build app\out\switch-pgo-use] [-Notes <file>]
 #       [-GameRoot D:\hexic\gamehd]
 param([string]$Name = "package", [string]$Build = "app\out\switch", [string]$Notes = "", [string]$GameRoot = "",
@@ -44,7 +44,7 @@ if ($GameRoot) {
     if ($LASTEXITCODE -ge 8) { throw "robocopy of the game files failed ($LASTEXITCODE)" }
 } else {
     Set-Content -Path (Join-Path $sd "game_root\PUT_YOUR_GAME_FILES_HERE.txt") -Encoding ascii -Value `
-        "Extract your own Hexic 2 package here (tools/stfs_extract.py): default.xex, Media/, Meshes/ and the rest, with Title Update 1's default.xexp beside default.xex (README.txt)."
+        "Extract your own Hexic HD package here (tools/stfs_extract.py): default.xex, Media/, Meshes/ and the rest, with Title Update 1's default.xexp beside default.xex (README.txt)."
 }
 if ($FourCore) {
     $npdm = Join-Path $out "COPY_TO_SD_ROOT\atmosphere\contents\05D6EA1333487100\exefs"

@@ -639,7 +639,12 @@ BANJO_RENUT_HOOK(sub_9221D7A0, D3DDevice_DrawVertices_hook);  // D3DDevice_DrawV
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_82254368, D3DDevice_DrawIndexedVertices_hook);  // D3DDevice_DrawIndexedVertices  // rr6-nx: reads the index buffer +12532, the same immediates as DrawVertices; 2 sites; Katamari 824DA0F0 hexichd-nx: this game does not link it
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824DA9C0, D3DDevice_DrawIndexedTessellatedVertices_hook);  // D3DDevice_DrawIndexedTessellatedVertices  // rr6-nx: not hooked in this XDK; Katamari 824DA9C0
 BANJO_RENUT_HOOK(sub_9221D328, D3DDevice_DrawVerticesUP_hook);  // D3DDevice_DrawVerticesUP  // rr6-nx: BeginVertices, memcpy, the end; 16 sites; Katamari 824D9758 hexichd-nx: rr6 822540A0
-BANJO_RENUT_UNHOOKED_HOOK(unlinked_8263F2B8, D3DDevice_DrawIndexedVerticesUP_hook);  // D3DDevice_DrawIndexedVerticesUP  // rr6-nx: not hooked in this XDK; Katamari 8263F2B8
+// hexichd-nx (2026-11-04): the Flash renderer's one indexed draw (sub_921D15E8). This XDK's IndexDataFormat is 0 for 16-bit and 1 for 32-bit (`cmpwi cr6,r26,1`).
+static void HexicHdDrawIndexedVerticesUP(u32 device, u32 primitive, u32 min_vertex, u32 num_vertices, u32 index_count, u32 index_data,
+                                         u32 index_format, u32 vertex_data, u32 stride) {
+  D3DDevice_DrawIndexedVerticesUP_hook(device, primitive, min_vertex, num_vertices, index_count, index_data, index_format == 1 ? 4u : 0u, vertex_data, stride);
+}
+BANJO_RENUT_HOOK(sub_9221D6C0, HexicHdDrawIndexedVerticesUP);  // D3DDevice_DrawIndexedVerticesUP  // rr6-nx: not hooked in this XDK; Katamari 8263F2B8
 BANJO_RENUT_HOOK(sub_9221D088, D3DDevice_BeginVertices_hook);  // D3DDevice_BeginVertices  // rr6-nx: Recomp's notes; 30 sites, each followed by sub_82254080; Katamari 824D92B8 hexichd-nx: rr6 82253E00
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824F3248, D3DDevice_ClearF_hook);  // D3DDevice_ClearF  // rr6-nx: not hooked in this XDK; Katamari 824F3248
 BANJO_RENUT_HOOK(sub_920B5FE0, D3DDevice_Clear_hook);  // D3DDevice_Clear  // rr6-nx: Zuma pair of sub_821287F8; 4 sites; Katamari 824F3370 hexichd-nx: rr6 82253D50
@@ -650,10 +655,10 @@ BANJO_RENUT_UNHOOKED_HOOK(unlinked_821E17C0, D3DDevice_EndTiling_hook);  // D3DD
 // the targets at TilingSurfaces +0x31B0, where the zones put N&B's fields; the game calls it at 0x8271E62C) and
 // EndTiling (sub_824F0150: sig 0.66/0.36, resolves through Resolve sub_824F12B8; called at 0x8272F2E0..0x8272F384),
 // with their full arguments read from the registers (the float argument takes r8's place: ClearStencil is r9).
-BANJO_RENUT_UNHOOKED_HOOK_RAW(unlinked_824EFBC8) {  // rr6-nx: not in this XDK; Katamari 824EFBC8
+BANJO_RENUT_HOOK_RAW(sub_920B9178) {  // hexichd-nx: stw r5,12948(r31); three game callers, the full public form  // rr6-nx: not in this XDK; Katamari 824EFBC8
   BeginTilingImpl(ctx.r3.u32, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32, ctx.r4.u32, float(ctx.f1.f64), ctx.r9.u32);
 }
-BANJO_RENUT_UNHOOKED_HOOK_RAW(unlinked_824F0150) {  // rr6-nx: not in this XDK; Katamari 824F0150
+BANJO_RENUT_HOOK_RAW(sub_920B94A0) {  // hexichd-nx: r4 flags, r5 rects, r6 destination, r7 colour, f1 Z, r9 stencil, r10 parameters; three game callers  // rr6-nx: not in this XDK; Katamari 824F0150
   ctx.r3.u64 = EndTilingImpl(ctx.r3.u32, true, ctx.r4.u32, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32, float(ctx.f1.f64),
                              ctx.r9.u32, ctx.r10.u32);
 }

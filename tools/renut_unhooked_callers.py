@@ -30,7 +30,7 @@ def main():
     for n in os.listdir(hdir):
         for m in re.finditer(r'^\s*BANJO_RENUT_HOOK(?:_RAW)?(?:_SHARED)?\(sub_([0-9A-F]{8})(?:,\s*(\w+))?', open(os.path.join(hdir, n), encoding='utf-8', errors='replace').read(), re.M):
             hooks[int(m.group(1), 16)] = m.group(2) or 'raw'
-    kat = {int(v['nights'], 16): k for k, v in json.load(open(os.path.join(ROOT, 'out', 'renut_map', 'kat_to_hx2.json'))).items()}
+    kat = {int(v['nights'], 16): k for k, v in json.load(open(os.path.join(ROOT, 'out', 'renut_map', 'rr6_to_hd.json'))).items()}
     starts = set()
     gen = os.path.join(ROOT, 'app', 'generated')
     for n in os.listdir(gen):

@@ -1274,12 +1274,12 @@ void SetFence(u32 device_va) {
 
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824E0590, D3DDevice_InsertCallback_hook);  // D3DDevice_InsertCallback  // rr6-nx: not hooked in this XDK; Katamari 824E0590
 BANJO_RENUT_HOOK(sub_920B2718, D3DDevice_AddRef_hook);  // D3DDevice_AddRef  // rr6-nx: Zuma pair of sub_82121720: the count at +12; Katamari 824D01C8 hexichd-nx: rr6 8225A148
-BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D0430, D3DDevice_AcquireThreadOwnership_hook);  // D3DDevice_AcquireThreadOwnership  // rr6-nx: not hooked in this XDK; Katamari 824D0430
-BANJO_RENUT_UNHOOKED_HOOK(unlinked_824D0470, D3DDevice_ReleaseThreadOwnership_hook);  // D3DDevice_ReleaseThreadOwnership  // rr6-nx: not hooked in this XDK; Katamari 824D0470
+BANJO_RENUT_HOOK(sub_920B2830, D3DDevice_AcquireThreadOwnership_hook);  // D3DDevice_AcquireThreadOwnership  // rr6-nx: not hooked in this XDK; Katamari 824D0430
+BANJO_RENUT_HOOK(sub_920B2870, D3DDevice_ReleaseThreadOwnership_hook);  // D3DDevice_ReleaseThreadOwnership  // rr6-nx: not hooked in this XDK; Katamari 824D0470
 BANJO_RENUT_HOOK(sub_920C7FE0, D3DDevice_GetDeviceCaps_hook);  // D3DDevice_GetDeviceCaps  // rr6-nx: Katamari pair; 1 site; Katamari 824E6410 hexichd-nx: rr6 8224F0D8
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_82641498, D3DDevice_GetDisplayMode_hook);  // D3DDevice_GetDisplayMode  // rr6-nx: not hooked in this XDK; Katamari 82641498
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_8225D1D0, D3DDevice_BlockOnFence_hook);  // D3DDevice_BlockOnFence  // rr6-nx: not hooked in this XDK; Katamari 8225D1D0
-BANJO_RENUT_UNHOOKED_HOOK(unlinked_824E89E8, D3D_SynchronizeToPresentationInterval_hook);  // D3D_SynchronizeToPresentationInterval  // rr6-nx: not hooked in this XDK; Katamari 824E89E8
+BANJO_RENUT_HOOK(sub_920B4CA0, D3D_SynchronizeToPresentationInterval_hook);  // D3D_SynchronizeToPresentationInterval  // rr6-nx: not hooked in this XDK; Katamari 824E89E8
 BANJO_RENUT_HOOK(sub_920B9DB0, D3DResource_GetDevice_hook);  // D3DResource_GetDevice  // rr6-nx: Zuma pair of sub_82122900; 1 site; Katamari 8263D4B8 hexichd-nx: rr6 82254C08
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_82BC8078, D3D_IsFusion_hook);  // D3D_IsFusion  // rr6-nx: not hooked in this XDK; Katamari 82BC8078
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824DE218, D3DDevice_SetGammaRamp_hook);  // D3DDevice_SetGammaRamp  // rr6-nx: not hooked in this XDK; Katamari 824DE218
@@ -1300,7 +1300,11 @@ BANJO_RENUT_UNHOOKED_HOOK(unlinked_8255A200, BeginRingManual_hook);  // D3D_CDev
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824DF3F0, RingBufferDeviceAllocate_hook);  // D3D_RingBufferDeviceAllocate  // rr6-nx: not hooked in this XDK; Katamari 824DF3F0
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_821FC318, AllocateInlineData_hook);  // D3D_CDevice_AllocateInlineData  // rr6-nx: not hooked in this XDK; Katamari 821FC318
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_824E05E8, D3DDevice_SetRingBufferParameters_hook);  // D3DDevice_SetRingBufferParameters  // rr6-nx: not hooked in this XDK; Katamari 824E05E8
-BANJO_RENUT_UNHOOKED_HOOK(unlinked_824E8E90, D3DDevice_Swap_hook);  // D3DDevice_Swap  // rr6-nx: not hooked in this XDK; Katamari 824E8E90
+// hexichd-nx (2026-11-04): this XDK's D3DDevice_Suspend and Resume (seven and six game callers): they run a kernel callback, wait for the GPU and
+// set or clear a flag under the critical section at +14000. Renut's device has no ring to hand over and that section is not initialised on it.
+BANJO_RENUT_HOOK_RAW(sub_920B2880) {}
+BANJO_RENUT_HOOK_RAW(sub_920B2918) {}
+BANJO_RENUT_HOOK(sub_920B4E10, D3DDevice_Swap_hook);  // D3DDevice_Swap  // rr6-nx: not hooked in this XDK; Katamari 824E8E90
 BANJO_RENUT_UNHOOKED_HOOK_SHARED(unlinked_82640818, D3DDevice_BeginCommandBuffer_hook);  // D3DDevice_BeginCommandBuffer  // rr6-nx: not hooked in this XDK; Katamari 82640818
 BANJO_RENUT_UNHOOKED_HOOK(unlinked_82640DE8, D3DDevice_EndCommandBuffer_hook);  // D3DDevice_EndCommandBuffer  // rr6-nx: not hooked in this XDK; Katamari 82640DE8
 BANJO_RENUT_UNHOOKED_HOOK_SHARED(unlinked_821F1A78, D3DDevice_RunCommandBuffer_hook);  // D3DDevice_RunCommandBuffer  // rr6-nx: not hooked in this XDK; Katamari 821F1A78
