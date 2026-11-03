@@ -928,12 +928,6 @@ void D3DDevice_Swap_hook(u32 device_va, u32 front_buffer, u32 /*parameters*/) {
     {
       std::lock_guard lock(State().mutex);
       image = FrontBufferImageLocked(front_buffer);
-      {  // TEMP-HD-DIAG
-        static int temp_hd_diag = 0;
-        if (temp_hd_diag++ < 12)
-          REXLOG_WARN("[hd-swap] front buffer {:08X}: host texture {}, {}x{}, source {}x{}", front_buffer, image.texture ? 1 : 0, image.width,
-                      image.height, image.source_width, image.source_height);
-      }
       if (image.texture)
         State().last_front_buffer = front_buffer;
       AdvanceTextureFrameLocked();

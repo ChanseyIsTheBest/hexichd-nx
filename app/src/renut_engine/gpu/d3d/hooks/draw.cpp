@@ -52,7 +52,7 @@ namespace {
 constexpr u32 kE_OUTOFMEMORY = 0x8007000Eu;
 // D3DVIEWPORT9 {0, 0, 0xFFFF, 0xFFFF, 0.0, 1.0} in N&B's data (unk_82001744):
 // the whole surface.
-constexpr u32 kFullViewport = 0;  // rr6-nx: only BeginTiling / EndTiling use it, which this XDK does not have;  // katamari-nx: 0x82001744->0x820FAEB4
+constexpr u32 kFullViewport = 0x92002514;  // hexichd-nx: `lis r11,-28160; addi r30,r11,9492` in BeginTiling and EndTiling, which end by setting it. rr6-nx had 0: that game never tiles, and here the frame stayed the size of a tile use it, which this XDK does not have;  // katamari-nx: 0x82001744->0x820FAEB4
 // D3DRS_HIZWRITEENABLE's index in the render state table.
 constexpr u32 kRenderStateHiZWriteEnable = 97;
 
