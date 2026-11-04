@@ -110,3 +110,28 @@ On, every sampled point is exact. Off, darks are up to 16 levels too bright. It 
 ## Open items
 
 See `docs/progress-log.md`.
+
+## peggle1-nx's SDK fixes (2026-11-04, the user's request)
+
+peggle1-nx's `sdk/` compared file by file with this tree's (read-only; its history is three whole-version commits, so there are no fixes to pick by commit).
+
+**Taken:**
+
+| Fix | Where | What it does |
+|---|---|---|
+| Leaderboards: stats reads | `kernel/xam/apps/xgi_app.cpp` | `XUserReadStats` zeroes the results header and fails, as for a profile not signed in to Live. It used to succeed and write nothing, so Peggle read heap garbage as results and crashed for real players |
+| Leaderboards: enumerators | `kernel/xam/xam_user.cpp` | `XamUserCreateStatsEnumerator` zeroes the handle and size and fails. As a stub it "returned" its first argument and left them unwritten |
+| Guest sign-in | `kernel/xam/xam_user.cpp`, key `xam_guest_signin` | Further connected controllers sign in as guests of the profile, with a name. A player 2 no longer shows stack bytes as a name |
+| Zero on decommit | `core/memory_switch.cpp`, `core/guest_memory_switch.*` | Released memory reads as zeros when committed again, as on the 360 and on the PC. The Switch kept the old contents |
+| Players 3 and 4 | `input/switch/switch_input_driver.cpp` | Each has their own button map, `input_p3_*` and `input_p4_*` |
+
+**Already here, in a later form:** the exit order (runtime before window, from pacman-nx with more on top), the crash log's folder, the sideways Joy-Con stick (`input_joycon_sideways_stick`), the vector aliasing fix.
+
+**Achievements: nothing to take.** `XamShowAchievementsUI` is the same stub in peggle1-nx and here, and `achievement_manager` and its overlay are the same files. A stub leaves r3 alone, so that call returns its first argument, the user index, 0: success.
+
+**Left out, and why:**
+
+- Offline sockets (`xsocket.cpp`, `net_offline_sockets`): this tree solves the same problem another way, with `guest_network` off and vivapinata-nx's `select`.
+- The asset pack (`pack_device`): a feature, not a fix. It changes the install and builds a pack at first boot.
+- `vblank_per_swap`, `clock_per_swap_hz`, `io_diag_crc`, `input_diag_users`, the muted audio dump, `DescribeHostCode`: diagnostics.
+- `setjmp_save_locals`, `lr_keep_returns`, `lr_keep_callees`: generator options for particular games, off unless asked for.
