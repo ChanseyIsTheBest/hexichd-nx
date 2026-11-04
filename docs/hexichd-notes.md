@@ -81,7 +81,14 @@ From `out/emu_runs/emu_census`, deko3d in Ryujinx:
 
 ## What rr6-nx's fixes mean here
 
-Taken with its renderer, each checked against this game: `hexichd_alpha_near_one` does nothing, as colour control `0x87000007` has the alpha test at always. `hexichd_user_clip_plane` has no game caller: `SetClipPlane`'s one caller is the library's own `sub_920B8A98`. `hexichd_strip_markers` does nothing, as nothing here is indexed. `hexichd_fog_nan_zero` is off the path too, by reading: the game's constants come from Flash's transforms, and no NaN was logged in c21 or c22. `hexichd_fetch_over_pointer` matches the hardware (a null `SetTexture` leaves the fetch constant). `hexichd_depth_covers_colour` matters here in principle, since the surfaces are tile-sized, and logged no case.
+Taken with its renderer, and what each means here:
+
+- `hexichd_alpha_near_one`: the alpha test was at always in all 3,000 draws logged from one scene (colour control `0x87000007`). Other scenes were not logged.
+- `hexichd_user_clip_plane`: no game caller. `SetClipPlane`'s one caller is the library's own `sub_920B8A98`.
+- `hexichd_strip_markers`: the census counts 0 indexed draws, so it has nothing to act on.
+- `hexichd_fetch_over_pointer`: matches the hardware, where a null `SetTexture` leaves the fetch constant.
+- `hexichd_fog_nan_zero`: **not checked on this game.** It zeroes NaNs in constant registers 21 and 22, which were Ridge Racer 6's fog values.
+- `hexichd_depth_covers_colour`: can apply, as the surfaces are tile-sized.
 
 ## The game's gamma ramp: for the user's decision
 

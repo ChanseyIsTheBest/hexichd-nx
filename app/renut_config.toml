@@ -1,7 +1,8 @@
-# hexic2-nx (the clean state: no game's lists yet) - ReXGlue codegen configuration.
+# hexichd-nx (Hexic HD, title 584107D1, XDK 2.0.1884) - ReXGlue codegen configuration.
 # The project keeps banjo-nx's internal name "renut" (generated/renut_*.h, the renut / renut_recomp targets,
 # out/renut_image.bin) so banjo-nx's CMake, post-codegen passes and renderer glue work unchanged; the NRO and the SD
-# folder are hexic2-nx (docs/hexic2-notes.md, "Decisions").
+# folder are hexichd-nx.
+# A change to this file runs the generator again: 2026-11-04, the coverage build for the first machine copies.
 
 includes = [
 "config/renut_funcs.toml",
