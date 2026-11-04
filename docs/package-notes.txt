@@ -1,0 +1,99 @@
+Hexic HD on the Switch: notes for this package
+==============================================
+
+This has never run on a console. Everything below was tested on the PC and in Ryujinx, so the console will be the first real
+judge of speed, sound and input.
+
+Install
+-------
+1. Copy COPY_TO_SD_switch_hexichd-nx to sdmc:/switch/hexichd-nx/ on the SD card.
+2. Put your extracted game in game_root/ (on this PC: D:\hexic\gamehd), with Title Update 1's default.xexp beside default.xex.
+   The package holds no game files.
+3. To use a toml, copy it over hexichd.toml. That is the only toml the NRO reads over its built-in settings. Under any other name
+   a toml does nothing and gives no log.
+
+Which toml
+----------
+configs/renut_play.toml  to play: diagnostics off, no stack sampler, no stall watchdog.
+configs/renut.toml       the package's hexichd.toml: the same settings with logs and the stack sampler on. Use it for a console profile.
+configs/renut_ab.toml    the in-run A/B: 19 targets, 30 s halves (target 1 does nothing, as the control), 19 minutes a round.
+                         Stay on one screen. The log's "[renut A/B]" lines give each target.
+
+What to test first
+------------------
+1. That it starts and reaches the title. The log's "[boot]" line gives the stages.
+2. Frame rate in play, handheld and docked. This is the main unknown. The game is about 1,180 small Flash draws a frame, so the render
+   thread may be what limits it. Please send the log either way.
+3. Music, by ear. It starts with one song, then plays the eight shuffled. It uses the same player as Hexic 2. No test here has
+   listened to it or measured its output.
+4. Leave the game from the main menu's Xbox Dashboard item. It should exit cleanly, with no rex_crash.log.
+5. Finish a game and restart: your scores and settings should still be there. See "Saves" below.
+6. A long Survival game. See "One crash" below.
+
+Decisions for you
+-----------------
+Gamma ramp, off by default. The console's display applies the XDK's ramp, and this port leaves it off unless you turn it on. At the six
+points sampled on the static panels against the emulated GPU: on, all exact; off, darks up to 16 levels too bright. So on is probably
+the true look, but it changes the picture, so it is yours to decide. Try: configs/renut_game_gamma.toml.
+
+Other picture options, off: configs/renut_smaa.toml, configs/renut_dynamic.toml, configs/renut_lower_res.toml.
+
+The picture
+-----------
+The game draws 1280x720. This package draws it at 1280x720 handheld and 1920x1080 docked, with nothing trimmed.
+The background hexagons lit cyan and yellow-green match your console screenshots. The emulated GPU leaves them grey in every mode tried,
+so it is not a reference for those bitmaps.
+
+What was tested, and what was not
+---------------------------------
+Tested on the PC (Renut on Vulkan): menus, Marathon, Timed, Survival, options, tutorial, the leaderboards screen.
+Tested in Ryujinx (deko3d): handheld and docked gameplay and clean exit with every verify key at zero differences, on the build before the
+last optimisation round. This exact NRO was packaged while its first Ryujinx run was still going, at your request.
+
+Leaderboards shows the game's sign-in message. Achievements calls a stub, so no list appears. There is no Xbox Live here.
+
+Not tested: anything on a console; music by ear; two-player play; the A/B list's flips on this game.
+
+Saves
+-----
+On the Switch they go to sdmc:/switch/hexichd-nx/renut/584107D1/profile/User/, not into game_root. Ryujinx wrote them there. Reading them
+back on the Switch's path has not been tested, so please check a score survives a restart.
+
+One crash
+---------
+About 20 minutes into scripted PC play, one Survival run overflowed the main thread's guest stack, 6 s after the Achievements call. The game
+asks for a 64 KB stack, as Hexic 2 does. This port now gives that thread at least 1 MB, and later Survival runs did not crash, but the first
+crash was not reproduced before the change, so its cause is not proven. If rex_crash.log appears, please send it.
+
+How to turn on a console profile
+--------------------------------
+1. Copy configs/renut.toml over hexichd.toml (a fresh package already has it there). switch_profile_stacks = true is in it.
+2. Play for a few minutes, the stretch you want measured.
+3. Send back rex_profile.log and logs/renut_001.log. The profile's first lines should say "Stack sampling: active".
+   hexichd-nx.elf in this package maps its addresses to source lines: keep it with the log.
+The sampler costs some speed, so judge how the game plays with renut_play.toml.
+
+If something misbehaves
+-----------------------
+banjo_cpu_native_bulk = false in hexichd.toml turns off all the machine copies. If a crash goes away with that key off, the copies
+are the place to look. banjo_spin_yield = false takes out the yield in the audio mixer's spin loops.
+
+Built-in settings against the shipped toml
+------------------------------------------
+Of the shipped toml's 244 keys, 235 match what the NRO uses without it. The other 9 are all logging and diagnostics, on in the toml
+and off built in: banjo_renut_diag_gpu_shaders, banjo_renut_diag_resolve_trace, banjo_renut_diag_terrain, banjo_shader_misses,
+banjo_stall_watch_seconds, log_file_writer, log_level, renut_gpu_profile, switch_profile_stacks.
+Runs with the full toml therefore never exercised those 9 at their built-in values. configs/renut_play.toml turns the same
+diagnostics off, so playing with it is the closest to the built-in settings.
+
+What the code rests on
+----------------------
+646 machine copies are on. Six every-call PC runs through the modes and menus compared 378 million calls with the generated code: 0
+differences, and every copy was reached and compared. The first list had 1,897; the other 1,251 proved nothing and were cut.
+
+This build has every post-codegen step that applies: indirect calls promoted at 67 sites, and locals, the r1 mirror and link-register
+write-backs chosen per function from the compiled ARM code. The hot-placement lists were skipped so you could have this sooner. The same
+PC runs checked these steps as they ran: 0 differences. Their benefit here is only static instruction costs, not timed on any machine.
+
+The profile samples came from Ryujinx and the PC, so no function is hand-written. Send a console profile and the hot functions get
+their own work. PGO + LTO has not been run. It waits for your say, as you asked.
