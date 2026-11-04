@@ -74,6 +74,7 @@ endif()
 # shader harvest): src/hexichd_keys.cpp defines the keys of those files that the kept ones still read.
 set(RENUT_SOURCES
     src/main.cpp
+    src/hexic_language.cpp  # hexichd-nx: the toml's language (from pacman-nx)
     src/hexichd_keys.cpp
     # katamari-nx (2026-10-31): DLC packages in the "dlc" folder next to the NRO installed at start (reNut upstream's).
     src/renut_engine/dlc_install.cpp

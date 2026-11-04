@@ -1,39 +1,22 @@
-# Hexic HD for the Switch: your options. Every other setting is built into the NRO
-# (app/hexichd_switch_defaults.toml). Delete this file and the game writes it again at the next start.
+# Hexic HD for the Switch: your options. Every other setting is built into the NRO.
+# Delete this file and the game writes it again at the next start.
 
-# Frame rate cap: "Off" (the game's own, uncapped as on the Xbox 360) or "30".
-frame_cap = "Off"
+# The game's language: "auto" follows the Switch's language; or english, japanese, french, german, spanish, italian,
+# korean, tchinese (Traditional Chinese), portuguese.
+language = "auto"
 
-# Face buttons by position, as on an Xbox pad (bottom = A). false = by letter.
+# Face buttons by position, as on an Xbox pad; false = by letter.
 input_xbox_layout = true
 
-# Single Joy-Cons are held sideways, one per player.
+# Single Joy-Cons held sideways, one per player.
 input_joycon_sideways = true
-# With it, a single Joy-Con's stick is turned for the sideways grip.
+# The single Joy-Con's stick turned for the sideways grip.
 input_joycon_sideways_stick = true
 
-# Button mapping for each player: the Switch buttons that press each Xbox button. Empty = default.
+# Button mapping: the Switch buttons that press each Xbox button. Empty = default.
 # Buttons: A B X Y L R ZL ZR PLUS MINUS LSTICK RSTICK UP DOWN LEFT RIGHT SL SR NONE. Example: a = "B, ZR"
 
 [input_p1]
-a = ""
-b = ""
-x = ""
-y = ""
-lb = ""
-rb = ""
-lt = ""
-rt = ""
-start = ""
-back = ""
-ls = ""
-rs = ""
-up = ""
-down = ""
-left = ""
-right = ""
-
-[input_p2]
 a = ""
 b = ""
 x = ""
