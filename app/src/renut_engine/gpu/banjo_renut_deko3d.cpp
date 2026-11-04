@@ -61,6 +61,23 @@ struct Package {
 };
 Package g_package;
 
+// The package at 'base': its table, data and dictionary.
+void OpenAt(Package &p, const uint8_t *base, size_t size) {
+  p.header = reinterpret_cast<const PackageHeader *>(base);
+  if (std::memcmp(p.header->magic, "BDKG", 4) != 0 || p.header->version != 1) {
+    REXLOG_ERROR("[deko3d] the GLSL package is not one this build reads");
+    return;
+  }
+  p.entries = reinterpret_cast<const PackageEntry *>(base + p.header->tableOffset);
+  p.data = base + p.header->dataOffset;
+  // banjo-nx (2026-10-22): no dictionary in a distribution build's package (deko3d_shader_package.py --raw): its
+  // frames are raw blocks, which the installer's page reads out of the NRO.
+  p.dict = p.header->dictSize ? ZSTD_createDDict(base + sizeof(PackageHeader), p.header->dictSize) : nullptr;
+  p.dctx = ZSTD_createDCtx();
+  p.ok = (p.dict || !p.header->dictSize) && p.dctx;
+  REXLOG_INFO("[deko3d] GLSL package: {} shaders, {} KB", p.header->count, size >> 10);
+}
+
 Package &Open() {
   std::call_once(g_package.once, [] {
     Package &p = g_package;
@@ -93,21 +110,20 @@ Package &Open() {
       REXLOG_ERROR("[deko3d] no GLSL package (deko3d_glsl.bin beside the NRO, or built in): no game shaders");
       return;
     }
-    p.header = reinterpret_cast<const PackageHeader *>(base);
-    if (std::memcmp(p.header->magic, "BDKG", 4) != 0 || p.header->version != 1) {
-      REXLOG_ERROR("[deko3d] the GLSL package is not one this build reads");
-      return;
-    }
-    p.entries = reinterpret_cast<const PackageEntry *>(base + p.header->tableOffset);
-    p.data = base + p.header->dataOffset;
-    // banjo-nx (2026-10-22): no dictionary in a distribution build's package (deko3d_shader_package.py --raw): its
-    // frames are raw blocks, which the installer's page reads out of the NRO.
-    p.dict = p.header->dictSize ? ZSTD_createDDict(base + sizeof(PackageHeader), p.header->dictSize) : nullptr;
-    p.dctx = ZSTD_createDCtx();
-    p.ok = (p.dict || !p.header->dictSize) && p.dctx;
-    REXLOG_INFO("[deko3d] GLSL package: {} shaders, {} KB", p.header->count, size >> 10);
+    OpenAt(p, base, size);
   });
   return g_package;
+}
+
+// pacman-nx (2026-11-03): the NRO's own package with deko3d_glsl.bin beside it. The released NRO holds only the shaders
+// in none of the game's files, which no installer finds; the file beside it has the others.
+Package g_built_in;
+Package &OpenBuiltIn() {
+  std::call_once(g_built_in.once, [] {
+    if (&g_deko3dGlslPackageSize != nullptr && g_deko3dGlslPackageSize >= sizeof(PackageHeader))
+      OpenAt(g_built_in, g_deko3dGlslPackage, g_deko3dGlslPackageSize);
+  });
+  return g_built_in;
 }
 
 const PackageEntry *FindIn(const PackageEntry *begin, const PackageEntry *end, uint64_t hash) {
@@ -119,6 +135,15 @@ const PackageEntry *Find(Package &p, uint64_t hash) {
   if (!p.ok)
     return nullptr;
   return FindIn(p.entries, p.entries + p.header->count, hash);
+}
+
+// The shader's entry in the file beside the NRO, else in the NRO's own package; '*from' says which.
+const PackageEntry *FindOwn(uint64_t hash, Package **from) {
+  *from = &Open();
+  if (const PackageEntry *e = Find(**from, hash))
+    return e;
+  *from = &OpenBuiltIn();
+  return Find(**from, hash);
 }
 
 // ---- banjo-nx (2026-10-22): the installer's package (banjo-nx-installer, its lib/package.js), deko3d_glsl.bin next
@@ -371,9 +396,10 @@ bool InstalledShaderTable(std::vector<ShaderCacheEntry> &entries, std::vector<Sh
 std::unique_ptr<plume::RenderShader> CreateGameShader(plume::RenderDevice *device, uint64_t hash) {
   // The installer's package first (made from the player's files), then the NRO's own.
   InstalledPackage &f = OpenInstalled();
-  Package &p = Open();
+  Package *own = &Open();
   const PackageEntry *installed = Find(f, hash);
-  const PackageEntry *e = installed ? installed : Find(p, hash);
+  const PackageEntry *e = installed ? installed : FindOwn(hash, &own);
+  Package &p = *own;
   if (!e || !device) {
     static int logged = 0;
     if ((f.ok || p.ok) && logged++ < 16)
@@ -563,8 +589,10 @@ std::string Report() { return {}; }
 
 bool BoolSpecMask(uint64_t hash, uint32_t mask[8]) {
   const PackageEntry *e = Find(OpenInstalled(), hash);
-  if (!e)
-    e = Find(Open(), hash);
+  if (!e) {
+    Package *own = nullptr;
+    e = FindOwn(hash, &own);
+  }
   if (!e)
     return false;
   std::memcpy(mask, e->boolMask, sizeof(e->boolMask));

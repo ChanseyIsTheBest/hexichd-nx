@@ -23,3 +23,9 @@
 | 13:05 | **Console package**: `D:\hexic\builds\2026-11-04_1305_hexichd_console1`, NRO SHA-256 `F6819DF5F2FB1406...`, source `e958e480`. **SD folder** with both games and their files: `D:\hexic\sd_card\switch`. |
 | 13:07 | That NRO in Ryujinx, shipping settings with the sampler: logo, menus, gameplay and the coloured hexagons draw; no crash. Start 12.5 s in the emulator. Render thread ahead of the game threads in the samples. |
 | 13:10 | Exit test on the packaged NRO: `ServiceAm Exit` at 2:12, no crash log. A/B list: 30 added back, since a shipping run shows those draws (the census had the fast draw off). |
+| 13:40-15:09 | The user's console profile: 46-58 fps, main thread 100 %. 745 copies, three hand-written natives, the shadow lookup cache, hot chunks, the language key, the short toml, the icon. PC guard, three runs: 131.6 M compared, 0 differences. Ryujinx guard: 650,726 compared, 0 differences. French in Ryujinx on the last NRO. SD folder updated. |
+| 15:17 | **The user: stop improving, make the final PGO + LTO builds with emulator data, a web installer like Katamari's, and upload all four repos and the release NRO.** |
+| 15:24-15:28 | `pacman-nx-installer` as the base. 12 version 0x0E containers in the image, 3 in none of the files. The translator's front end reads 0x0E and is rebuilt from this tree. The page's chain against the native one: 12 of 12 shaders the same text. |
+| 15:36 | Instrumented NRO, 43.5 MB, no LTO, 1.8 GB tree. pacman-nx's built-in plus beside-the-NRO shader lookup added afterwards: 3 shaders built in, 12 beside. |
+| 15:36-16:08 | Five PGO sessions in Ryujinx, no crash: Marathon twice (a script's mistake ran it again), Timed, Survival, the menus and options. 123 profile files, 2.5 MB. The instrumented tree removed to save disk. |
+| 16:21 | **Final NRO**, PGO + LTO: 32.5 MB, 1.8 GB tree, 12 minutes. |

@@ -166,3 +166,15 @@ The costs are `tools/locals_choice.py`'s static cost of the compiled A57 code, w
 **Checked** on the PC: six every-call runs on the regenerated code. 378.0 M calls compared, 120.7 M not comparable, 0 differences. All 646 copies were reached and compared. The generated code's own checks also ran throughout, 0 differences: promoted calls 72.5 M, r1 mirror 217.2 M, dropped write-backs 191.1 M.
 
 The copy list went from 1,897 to 646: the first six runs compared 646 of them, and the other 1,251 proved nothing (1,250 reached and never compared, 1 never reached). Any that a profile samples return through `--merge`.
+
+## The console rounds and the release (2026-11-04)
+
+**The console run:** 46-58 fps, main thread at 100 %, render thread 13 ms a frame, GPU 5.7 ms, about 1,600 draws a frame. Main thread by kind: game copies 32.0 %, generated code 18.3 %, `CaptureDelta` 15.7 %, mutexes 9.3 %, critical sections 7.3 %, shadow lookups 5.8 %, D3D setters 4.4 %, draw queue 3.3 %. The top game functions are display-list pointer chases, whose time is cache misses, and the allocator holds critical sections the guard cannot check.
+
+**What came of it:** 745 machine copies. Hand-written, three (`app/src/cpu/hot/hand.txt`): `sub_92055D00`, the Flash value release, the common case directly; `sub_9206C070` and `sub_9206C9F8`, read-ahead through 12 children before the normal copy runs. That is not the ten asked for, and the reason is above. A shadow lookup cache (`hexichd_object_cache`). Hot chunks (`hexichd_delta_hot_chunks`, on by default): 8 of the 39 device chunks ever changed within a frame over six modes and 160 M draws, so a draw tests 4 state chunks, then compares only the 4 that change, and all 39 every 8th draw. If an unseen state does change within a frame, that draw and up to 7 after it use the old state. That is the one thing in this port that is not exact by construction: the user was told, and asked for the final build with it on; it is theirs to turn off.
+
+**Checks on the build before PGO:** PC, 745 list, three runs: 131.6 M compared, 169.4 M not comparable, 0 differences; 641 copies compared, 98 sampled and never compared, 6 not reached in those runs. Ryujinx guard: 650,726 compared, 0 differences; 64,488 draws delta-verified, 0 differ, with the A/B targets flipping. The last NRO before PGO ran in French in Ryujinx for two minutes with no crash, without the guard.
+
+**The installer's shaders:** 12 version 0x0E containers in the patched image and 3 assembled at run time, built into the NRO. The translator's front end for the page reads 0x0E as `main.cpp` does (`tools/renut_hlsl_frontend.cpp`, `container_0e.h`), and it is rebuilt from this tree because this port's translator differs (a user clip plane, more cube map directions). All 12 came out with the native chain's GLSL, text for text.
+
+**PGO + LTO, the user's word:** the profile was collected in Ryujinx, at the user's request, not on the console. Sessions: Marathon, Timed, Survival, options and tutorial. See the progress log for the numbers.

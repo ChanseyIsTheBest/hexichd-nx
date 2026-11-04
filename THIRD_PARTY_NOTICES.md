@@ -8,6 +8,10 @@ folder it is in (see below).
 
 | Project | Used for | License |
 |---|---|---|
+| [katamari-nx](https://github.com/ChanseyIsTheBest/katamari-nx) by ChanseyIsTheBest | This port's base: the renderer port, the tools, the SDK fork | GPL-3.0; the SDK parts BSD-3-Clause |
+| [pacman-nx](https://github.com/ChanseyIsTheBest/pacman-nx), [peggle1-nx](https://github.com/ChanseyIsTheBest/peggle1-nx), [feedingfrenzy-nx](https://github.com/ChanseyIsTheBest/feedingfrenzy-nx), [bejeweled3-nx](https://github.com/ChanseyIsTheBest/bejeweled3-nx), [battd_nx](https://github.com/ChanseyIsTheBest/battd_nx), the zuma ports, vivapinata-nx, halo3-nx and rr6-nx by ChanseyIsTheBest | The language key, the update's patch, SDK fixes, version 0x0E shader containers, shadow objects, the GPU arena, hot functions | GPL-3.0 |
+| NetherSX2_nx by NaGaa95 | The four-core layout | MIT |
+| Ridge Racer 6 Recomp by Sirhalo23 | Fixes that came here through rr6-nx; its notice stays on what was taken from it | BSD |
 | [renut-nx](https://github.com/ChanseyIsTheBest/renut-nx) (banjo-nx: Banjo-Kazooie: Nuts & Bolts) by ChanseyIsTheBest | The tree this port started from: the SDK fork, the app, the tools, the renderer's adaptation, plume's deko3d back end, the shader passes | GPL-3.0 |
 | [sa2-nx](https://github.com/ChanseyIsTheBest/sa2-nx), [futari-nx](https://github.com/ChanseyIsTheBest/futari-nx), Peggle 2's and Sonic & All-Stars Racing Transformed's ports by ChanseyIsTheBest | CPU rounds, built-in settings, release shader files, fixes | GPL-3.0 |
 | [masseffect-nx](https://github.com/nebadasSwifty/masseffect-nx) by NebadasSwifty | The structure of `app/`, `app/src/me` | GPL-3.0 |

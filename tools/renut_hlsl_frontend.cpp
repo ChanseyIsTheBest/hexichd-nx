@@ -19,6 +19,7 @@
  * Exit status: 0 if every container was translated, 2 if some were not, 1 on a usage or I/O error.
  */
 #include "shader_recompiler.h"
+#include "container_0e.h"  // hexichd-nx (2026-11-04): this game's containers are version 0x0E, as the translator's main.cpp reads them
 
 #include <cstdint>
 #include <cstdio>
@@ -79,7 +80,13 @@ int main(int argc, char** argv) try {
   for (const auto& e : std::filesystem::directory_iterator(input)) {
     if (!e.is_regular_file() || e.path().extension() != ".bin") continue;
     ++total;
-    const std::vector<uint8_t> data = ReadAll(e.path());
+    std::vector<uint8_t> data = ReadAll(e.path());
+    // As the translator's main.cpp: a version 0x0E container keeps the name of its own hash and is translated from its 0x11 form.
+    uint64_t own_hash = 0;
+    if (container_0e::IsContainer0E(data.data(), data.size())) {
+      own_hash = XXH3_64bits(data.data(), size_t(container_0e::Rd(data.data(), 4)) + container_0e::Rd(data.data(), 8));
+      data = container_0e::Convert(data.data());
+    }
     if (data.size() < sizeof(ShaderContainer)) {
       std::printf("  %s: truncated\n", e.path().filename().string().c_str());
       continue;
@@ -91,7 +98,7 @@ int main(int argc, char** argv) try {
       std::printf("  %s: not a shader container\n", e.path().filename().string().c_str());
       continue;
     }
-    const uint64_t hash = XXH3_64bits(container, extent);
+    const uint64_t hash = own_hash ? own_hash : XXH3_64bits(container, extent);
 
     ShaderRecompiler recompiler;
     try {

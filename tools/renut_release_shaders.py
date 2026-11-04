@@ -8,14 +8,14 @@ file the web installer makes in their place, for tests.
 Writes into app/out/renut_switch_release/:
   shader_cache_switch.cpp   the shader table (numbers: hashes, fetch masks, vertex input formats) without the SPIR-V
                             (the deko3d back end never reads it; the PC's Vulkan one does)
-  sd/deko3d_glsl.bin        the package of the game's shaders, which the web installer makes from the player's files and
+  deko3d_glsl_switch.cpp    the few shaders the game makes at run time, built into the NRO: they are in none of its files
+                            (pacman-nx's way; tools/hexic_shader_files.py lists them)
+  sd/deko3d_glsl.bin        the package of the game's other shaders, which the web installer makes from the player's files and
                             puts beside the NRO (this one is the Python tools' copy: game data, for tests only, never
                             distributed)
-Every one of Beautiful Katamari's 195 shaders is a container stored in its files (111 in default.xex, 84 in the models
-of d02-d05.dat), so no GLSL package is built into the NRO: app/cmake/banjo_renut_gpu.cmake
-(BANJO_RENUT_RELEASE_SHADERS) builds with these files.
 """
 import argparse
+import json
 import os
 import re
 import shutil
@@ -34,7 +34,7 @@ def package(glsl_dir, names, out_dir):
     for n in names:
         shutil.copyfile(os.path.join(glsl_dir, n), os.path.join(src, n))
     subprocess.run([sys.executable, '-P', os.path.join(ROOT, 'tools', 'deko3d_shader_package.py'), '--glsl', src,
-                    '--out', out_dir], check=True)
+                    '--out', out_dir, '--raw'], check=True)
     shutil.rmtree(src)
 
 
@@ -64,18 +64,27 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--glsl', default=os.path.join(ROOT, 'out', 'deko3d_shaders', 'glsl_opt'))
     ap.add_argument('--cache', default=os.path.join(ROOT, 'app', 'out', 'renut_switch', 'shader_cache_switch.cpp'))
+    ap.add_argument('--places', default=os.path.join(ROOT, 'out', 'hexic_shader_files.json'),
+                    help='tools/hexic_shader_files.py: its "runtime" list is built into the NRO')
     ap.add_argument('--out', default=os.path.join(ROOT, 'app', 'out', 'renut_switch_release'))
     a = ap.parse_args()
     names = sorted(f for f in os.listdir(a.glsl) if re.fullmatch(r'(vs|ps)_[0-9A-F]{16}\.glsl', f))
     if not names:
         sys.exit(f'renut_release_shaders: no shaders in {a.glsl}')
     os.makedirs(a.out, exist_ok=True)
-    package(a.glsl, names, os.path.join(a.out, 'sd'))
+    runtime = set()
+    for s in json.load(open(a.places, encoding='utf-8'))['runtime']:
+        stage, h = s['name'].split('_')
+        runtime.add('%s_%s.glsl' % (stage, h.upper()))
+    if not runtime or not runtime <= set(names):
+        sys.exit(f'renut_release_shaders: the run-time shaders of {a.places} are not all in {a.glsl}')
+    package(a.glsl, sorted(set(names) - runtime), os.path.join(a.out, 'sd'))
     os.remove(os.path.join(a.out, 'sd', 'deko3d_glsl_switch.cpp'))  # the installer's file is never built in
+    package(a.glsl, sorted(runtime), a.out)
     text = open(a.cache, encoding='utf-8').read()
     with open(os.path.join(a.out, 'shader_cache_switch.cpp'), 'w', encoding='utf-8', newline='\n') as f:
         f.write(strip_spirv(text))
-    print(f'renut_release_shaders: no shader built in, beside the NRO {len(names)} game shaders -> {a.out}')
+    print(f'renut_release_shaders: {len(runtime)} shaders built in, {len(names) - len(runtime)} beside the NRO -> {a.out}')
 
 
 if __name__ == '__main__':
