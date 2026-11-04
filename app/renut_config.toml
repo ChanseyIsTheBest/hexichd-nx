@@ -2,7 +2,7 @@
 # The project keeps banjo-nx's internal name "renut" (generated/renut_*.h, the renut / renut_recomp targets,
 # out/renut_image.bin) so banjo-nx's CMake, post-codegen passes and renderer glue work unchanged; the NRO and the SD
 # folder are hexichd-nx.
-# A change to this file runs the generator again: 2026-11-04, the first 1,897 machine copies, for their verify runs.
+# A change to this file runs the generator again: 2026-11-04, every post-codegen step on: promoted calls, the choice lists, the cut copy list.
 
 includes = [
 "config/renut_funcs.toml",

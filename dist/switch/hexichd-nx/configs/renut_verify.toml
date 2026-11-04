@@ -234,24 +234,7 @@ banjo_gpu_edram4_split_tiles = true
 
 # Hot game functions as native copies (2026-10-14; CPU group; docs/enhancements.md): eighteen functions of the game run
 # as copies that keep their work in the processor; each compares itself with the original and turns itself off if they differ.
-banjo_cpu_native_sub_82376878 = true
-banjo_cpu_native_sub_823769E8 = true
-banjo_cpu_native_sub_82B6B258 = true
-banjo_cpu_native_sub_82373F70 = true
-banjo_cpu_native_sub_821F9BB8 = true
-banjo_cpu_native_sub_822DA610 = true
-banjo_cpu_native_sub_82377E88 = true
-banjo_cpu_native_sub_823828A8 = true
-banjo_cpu_native_sub_82376450 = true
-banjo_cpu_native_sub_8222A1D0 = true
-banjo_cpu_native_sub_82378BC0 = true
-banjo_cpu_native_sub_82229110 = true
-banjo_cpu_native_sub_82382780 = true
 banjo_cpu_native_xaudio_src_m03 = true
-banjo_cpu_native_sub_82A02D00 = true
-banjo_cpu_native_sub_822216C8 = true
-banjo_cpu_native_sub_82376768 = true
-banjo_cpu_native_sub_82229C90 = true
 
 # Texture memory on the Switch (2026-10-22, the 36z6 crash in the town): the textures the renderer keeps for the GPU are
 # released when they have not been used for a while and the heap (one for everything on the Switch) has less than this

@@ -167,12 +167,13 @@ def main():
     # cpu_aggressive C: the script interpreters' jump-table dispatch threaded into each handler (computed gotos, GCC
     # cross-jumping off for these functions only). Switch back: REX_SWITCH_THREAD_OFF / REX_SWITCH_GOTO_OFF.
     run(tool('switch_goto.py'), '--gen', gen, '--thread', '--only',
-        'sub_8299D480,sub_829A75E8,sub_8299E2E8,sub_82C3D4E8,sub_829AA068')
+        'sub_9207F8B8,sub_92149320,sub_920E8960,sub_920EBC80,sub_920E32A8')  # this game's dispatch loops that are no copies (a label before a jump table, at least 4 gotos back to it): cold, as no hot interpreter exists
     # cpu_aggressive D: proven link-register write-backs (the value ctx.lr already holds) compile to nothing on the
     # Switch; REX_LR_WRITE_SAME_CHECK (PC verify) tests every one. Before r1_local.py (its patterns name ctx.r1).
     proofs = os.path.join(ROOT, 'out', 'cpu_aggressive_proofs')
+    # hexic2-nx: REX_CHOICE_ALL=1 rewrites every proven site, for tools/form_choice.py's measurement on a scratch tree.
     run(tool('lr_preserve.py'), '--gen', gen, '--out', proofs, '--assume-indirect', '--rewrite',
-        '--only-file', os.path.join(APP, 'config', 'lr_write_same_choice.json'))
+        *([] if os.environ.get('REX_CHOICE_ALL') else ['--only-file', os.path.join(APP, 'config', 'lr_write_same_choice.json')]))
     # cpu_aggressive E: r1 as a local mirror in the functions where it compiles cheaper (app/config/r1_local_choice.json),
     # on the whole-program proof that callees return with r1 unchanged. REX_R1_CHECK (PC verify) tests the assumed
     # calls, REX_R1_STRICT reloads after them, REX_R1_LOCAL_OFF is the original code.

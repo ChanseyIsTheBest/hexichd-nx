@@ -1,1 +1,33 @@
-# hexic2-nx: empty until this game's console profile
+# Guest functions whose A57 code is cheaper WITHOUT the loop / leaf locals: tools/form_choice.py, 2026-11-04 (more than 2.0 % of the locals form).
+leaf sub_92087110
+leaf sub_92087FE8
+leaf sub_92097018
+leaf sub_921D1B70
+leaf sub_921E03D0
+leaf sub_9220BA70
+leaf sub_9220C1B0
+leaf sub_922465B0
+loop sub_92073758
+loop sub_9207EAD0
+loop sub_92096018
+loop sub_920A0D00
+loop sub_920C69B0
+loop sub_920D9FA0
+loop sub_920DA380
+loop sub_920E11A0
+loop sub_920E8C40
+loop sub_920E92C0
+loop sub_920FF248
+loop sub_921073D8
+loop sub_92110DA0
+loop sub_92113100
+loop sub_92142620
+loop sub_92174840
+loop sub_921D24C0
+loop sub_921D30C8
+loop sub_922232F0
+loop sub_92224DA0
+loop sub_9223BC98
+loop sub_9223BE20
+loop sub_922417C0
+loop sub_922454D0

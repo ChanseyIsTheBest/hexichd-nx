@@ -133,7 +133,8 @@ def main():
     # hexichd-nx: the base is katamari-nx's shipped renut.toml: its three header lines, its keys and paths go.
     base = base.replace('sdmc:/switch/katamari-nx/', 'sdmc:/switch/hexichd-nx/')
     base = '\n'.join(l for l in base.split('\n')
-                     if not l.startswith('katamari_') and 'katamari' not in l.lower().split('=')[0]) + '\n'
+                     if not l.startswith('katamari_') and 'katamari' not in l.lower().split('=')[0]
+                     and not l.startswith('banjo_cpu_native_sub_8')) + '\n'  # Banjo's addresses: this game's code starts at 0x9204D000
     shipped = apply(base, SHIPPED)
     os.makedirs(os.path.join(a.out, 'configs'), exist_ok=True)
     outs = {
