@@ -16,7 +16,7 @@ import argparse
 import os
 import re
 
-HEADER = """# hexic2-nx (Hexic 2 on the Switch, Renut's renderer on deko3d): {what}
+HEADER = """# hexichd-nx (Hexic HD on the Switch, Renut's renderer on deko3d): {what}
 # Made by tools/make_hexichd_tomls.py from katamari-nx's shipped renut.toml (2026-11-02). Copy to
 # sdmc:/switch/hexichd-nx/hexichd.toml. Credits: reNut's renderer (masterspike52, reuse permitted), katamari-nx, banjo-nx,
 # sa2-nx, NetherSX2_nx (four-core layout), battd_nx (the GPU arena), bejeweled3-nx and the zuma ports (hot functions).
@@ -26,17 +26,16 @@ HEADER = """# hexic2-nx (Hexic 2 on the Switch, Renut's renderer on deko3d): {wh
 SHIPPED = {
     'banjo_renderer': '"renut"',
     'renut_gpu_backend': '"deko3d"',
-    # The game's MSAA, no dynamic resolution. The request: docked renders at 1080p, handheld at 720p. Hexic 2 draws its whole frame
-    # at 1600x904 (docs/hexic2-notes.md), and these keys count from 720 = 1x: 576 is 4/5 (1280x723, the present shows 720 lines), 864 is
-    # 6/5 (1920x1085, 1080 lines). configs/renut_1600x904.toml keeps the game's own size in both modes.
-    # hexic2-nx: SMAA changes the picture (the request: pixel-identical by default). configs/renut_smaa.toml is the user's.
+    # The game's MSAA, no dynamic resolution. The request: docked renders at 1080p, handheld at 720p. Hexic HD draws a 1280x720 frame, so
+    # these keys are simply 1x and 1.5x, with nothing trimmed.
+    # hexichd-nx: SMAA changes the picture (the request: pixel-identical by default). configs/renut_smaa.toml is the user's.
     'banjo_renut_smaa': 'false',
     # N&B's own picture keys back to their exact defaults (they act on N&B's fur shaders and portrait box, nothing here).
     'banjo_renut_fur_shells_percent': '100',
     'banjo_renut_portrait_fur_shells_percent': '100',
     'banjo_renut_portrait_msaa_samples': '0',
-    'banjo_renut_render_height_handheld': '576',
-    'banjo_renut_render_height_docked': '864',
+    'banjo_renut_render_height_handheld': '720',
+    'banjo_renut_render_height_docked': '1080',
     'banjo_renut_dynamic_resolution': 'false',
     'disable_msaa': 'false',
     'renut_shadow_resolution': '"1x"',
@@ -60,11 +59,11 @@ SHIPPED = {
     # The XBLA full game (XamContentGetLicenseMask), not the trial.
     'license_mask': '1',
 }
-# hexic2-nx: the request's "diagnostics off" includes the stack sampler and the stall watchdog, which pause threads.
+# hexichd-nx: the request's "diagnostics off" includes the stack sampler and the stall watchdog, which pause threads.
 PLAY = {'banjo_renut_diag_resolve_trace': 'false', 'banjo_renut_diag_gpu_shaders': 'false',
         'banjo_renut_diag_terrain': 'false', 'switch_profile_stacks': 'false', 'banjo_stall_watch_seconds': '0',
         'banjo_cpu_profiler': 'false', 'renut_gpu_profile': '0.0'}
-# hexic2-nx (2026-11-04), from this game's census (docs/hexic2-notes.md): about 1,040 direct draws a frame in gameplay, indexed, with no
+# hexichd-nx (2026-11-04), from this game's census (docs/hexichd-notes.md): about 1,040 direct draws a frame in gameplay, indexed, with no
 # recorded command buffers. What acts here: the fast draw (25), render states by content (28), whole-buffer copies (22, 96 % of draws),
 # their base-vertex draws (30), mesh objects (42, 94 % of draws), the capture pool (5), the record worker (14), the setters' chain, tags,
 # compare and tags apart (20, 21, 26, 27), the texture memo and skip (32, 39), resident literals (34), repeated clears (67), the provisional
@@ -96,15 +95,13 @@ CONFIGS = {
     # renut_nomsaa.toml left out (2026-10-30): disable_msaa acts through banjo-nx's mid-asm hooks at N&B's render-target
     # creation (renut_engine/hooks.cpp, not built here); in this port the key changes nothing (the emu3 run still
     # resolved 4-sample depth). It needs hooks at Katamari's own render-target creation first.
-    'renut_lower_res.toml': ({'banjo_renut_render_height_handheld': '504', 'banjo_renut_render_height_docked': '720'},
-                             'lower resolution for speed: 1120x633 handheld, 1600x904 docked (the present scales them; not pixel-identical)'),
-    'renut_1600x904.toml': ({'banjo_renut_render_height_handheld': '720', 'banjo_renut_render_height_docked': '720'},
-                            'the game\'s own 1600x904 in both modes, every pixel as the Xbox 360 draws it before its scaler; the present scales it to the display'),
+    'renut_lower_res.toml': ({'banjo_renut_render_height_handheld': '540', 'banjo_renut_render_height_docked': '720'},
+                             'lower resolution for speed: 960x540 handheld, 1280x720 docked (the present scales them; not pixel-identical)'),
     'renut_smaa.toml': ({'banjo_renut_smaa': 'true'},
                         'SMAA on (not pixel-identical: your decision; A/B target 19 measures its GPU time)'),
     'renut_dynamic.toml': ({'banjo_renut_dynamic_resolution': 'true'},
-                           'banjo-nx\'s dynamic resolution; its keys count from 720 = 1600x904, so 540-720 is 1200x678 to 1600x904 handheld, 720-1080 is 1600x904 to 2400x1356 docked (not pixel-identical)'),
-    # hexic2-nx: docs/pacman-notes.md, "Renut against the emulated GPU". Never run on this port.
+                           'banjo-nx\'s dynamic resolution: 540-720 lines handheld, 720-1080 docked docked (not pixel-identical)'),
+    # hexichd-nx: docs/pacman-notes.md, "Renut against the emulated GPU". Never run on this port.
     'renut_game_gamma.toml': ({'banjo_renut_game_gamma': 'true'},
                               'the display\'s gamma ramp at scan-out, as the emulated GPU applies it: darks darker, up to 18 levels (not pixel-identical: your decision)'),
 }
@@ -133,7 +130,7 @@ def main():
     ap.add_argument('--out', required=True)
     a = ap.parse_args()
     base = open(a.banjo, encoding='utf-8').read().replace('sdmc:/switch/banjo-nx/', 'sdmc:/switch/hexichd-nx/')
-    # hexic2-nx: the base is katamari-nx's shipped renut.toml: its three header lines, its keys and paths go.
+    # hexichd-nx: the base is katamari-nx's shipped renut.toml: its three header lines, its keys and paths go.
     base = base.replace('sdmc:/switch/katamari-nx/', 'sdmc:/switch/hexichd-nx/')
     base = '\n'.join(l for l in base.split('\n')
                      if not l.startswith('katamari_') and 'katamari' not in l.lower().split('=')[0]) + '\n'

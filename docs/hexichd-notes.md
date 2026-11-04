@@ -41,6 +41,27 @@ Worked example: rr6-nx at 2.0.2135 (`docs/rr6-notes.md`, "Renut at XDK 2.0.2135"
   - `Suspend` `0x920B2880` and `Resume` `0x920B2918`: no-ops on Renut. They wait for the GPU and set a flag under a critical section at `+14000` that Renut's device does not initialise.
 - **Device layout** (`tools/d3d_device_layout.py`, against RR6, `out/renut_map/layout_rr6.json`): the head and constants as RR6's (2,906 accesses, delta 0 to `0x494`; `0x2880-0x28A0` too), then -20 from `0x28C0`, -24 from `0x2CA0`, -32 from `0x34D0`, -36 from `0x4FD4`, -40 from `0x5030`. The real allocation is `0x5080` (`li r3,20608`). rr6's `d3d.h` keeps Katamari's layout where only Renut reads it, so the first build keeps it too and the game's reads decide: `tools/hd_lib_census.py` lists the unhooked functions the game calls with the fields they use.
 
+## First runs on the PC (2026-11-04)
+
+What stood between the first link and gameplay on Renut, in order:
+
+- **A crash on the emulated GPU** after about 4 s, `0xC000008F` (float inexact) in the XAudio callback. Ridge Racer 6 Recomp's `SDK-NOTES.md`, item 1: the SDK's host threads enter guest code with no guest FP state, so the first flush-mode toggle unmasks FP exceptions. Fixed where those threads start, `XHostThread::Execute`, which also covers the graphics interrupt thread.
+- **`renut.cfg`.** Renut on the PC waits in `PathSetupWizard` unless that file is beside the exe (pacman-nx's notes). It is in the build folder, not in git, so a fresh build tree needs it. The symptom is a process alive with a log that stops at "Renderer:".
+- **No shaders.** The game assembles 3 shaders from text at run time (`sub_92055060`: the first is `vs.1.1`), with D3DX's assembler linked in. Until those are captured (`app/out/pc/shader_capture`) and a PC build translates them, every draw is skipped: "DRAWS NOT DRAWN".
+- **No picture.** `Swap` and `EndTiling` are Katamari-form hooks that took the game's own textures, where rr6-nx's `Resolve` goes through their shadows (`Rr6TextureShadow`). Both now do.
+- **The frame squashed into the top 256 lines.** The game never calls `SetViewport`. The surface it binds is one tile tall, and real `BeginTiling` and `EndTiling` end with `SetViewport(0x92002514)`, a constant meaning the whole frame. rr6-nx's `kFullViewport` was 0, since that game never tiles, so the call did nothing here.
+- **No music.** The game starts it only on notification `0x0A000003` (the title has playback control) with a non-zero value (`sub_9204E068`). A console announces that; the SDK sent it only when a game changed the controller. `RegisterNotifyListener` now sends it to the first listener with the XMP area in its mask (47 here). It first plays `Oilyn.wma` as a one-song playlist, which is what `sub_920510A0` asks for.
+
+## The coloured background hexagons are real
+
+**The emulated GPU is wrong here and Renut is right.** The user's console screenshots show background hexagons lit cyan and yellow-green. Renut draws them. The emulated GPU, on both Vulkan and Direct3D 12, leaves them grey (1 or 2 of about 40 captures coloured, all title frames).
+
+For the record, as it cost about an hour: I took this for a Renut bug because the reference disagreed. Ruled out by test, before the console shots arrived: frame rate (capped at 60), the non-CPU enhancements, device snapshot deltas, the stream cache, card proofs, and a late upload of the colour table. What the effect is, from draw logs and skipping classes of draws: 256x256 bitmaps drawn through the hexagon stencil mask, with Flash's colour transform. `texture × c0 + c1`, with `c0 = 0.398` and `c1 = (0.273, 0.508, 0.594)` on a white texel, gives exactly `(171, 231, 253)`. I did not find why the emulated GPU drops them, and it is not needed for this port.
+
+So **the emulated GPU is not a safe reference for this game's masked bitmaps.** Console shots outrank it.
+
+Flash's colour table, also from that work: `sub_9209B100` keeps up to 1024 de-duplicated colours in a 1024x1 texture, `sub_9209AF80` reads an entry on the CPU and writes it inline to pixel shader constant c2 at `device+6048`.
+
 ## Open items
 
 See `docs/progress-log.md`.
