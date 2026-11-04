@@ -29,3 +29,5 @@
 | 15:36 | Instrumented NRO, 43.5 MB, no LTO, 1.8 GB tree. pacman-nx's built-in plus beside-the-NRO shader lookup added afterwards: 3 shaders built in, 12 beside. |
 | 15:36-16:08 | Five PGO sessions in Ryujinx, no crash: Marathon twice (a script's mistake ran it again), Timed, Survival, the menus and options. 123 profile files, 2.5 MB. The instrumented tree removed to save disk. |
 | 16:21 | **Final NRO**, PGO + LTO: 32.5 MB, 1.8 GB tree, 12 minutes. |
+| 16:23-16:33 | That NRO from the installer's zip in Ryujinx, a clean first start: the game writes `hexichd.toml`, no crash; 12 shaders beside the NRO and 3 built in; the menus and a Marathon game draw. Leaving from the Dashboard item: `ServiceAm Exit` at 2:02, no crash log. |
+| 16:33-16:36 | **Uploaded:** `hexichd-nx` with release v1.0.0 (the NRO, SHA-256 `d46581f1...`) and `hexichd-nx-installer` on GitHub Pages. The live page serves that NRO with the right hash. The page's worker in a real browser pane, with the game's and the update's packages: the shaders match the tested ones, zip 90.3 MB in 7 s. |
