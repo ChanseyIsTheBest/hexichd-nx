@@ -14,3 +14,12 @@
 | 10:33 | The coloured background hexagons, chased as a bug: the user's console shots show them as the real look. The emulated GPU is what misses them, in all its modes. All temporary logging removed. |
 | 10:46 | First Switch build: NRO 26.2 MB, `app/out/switch` 1.6 GB, `sdk/out/switch-arm64` 39 MB. rr6-nx's console-test switches for plume left out. 15 shaders compiled, 0 failed. |
 | 10:51 | **deko3d in Ryujinx**: title, tutorial and live gameplay with the coloured hexagons, no crash, verify reports all at zero differences, music started. |
+| 11:25 | peggle1-nx's SDK fixes, at the user's request: leaderboards, guest sign-in, zero on decommit, players 3 and 4. Nothing new there for achievements or exit. |
+| 11:51-12:11 | PC build with 1,897 copies. Six every-call runs: 516.9 M calls compared, 0 differences. 646 copies compared, 1,250 reached and never compared, 1 never reached: list cut to the 646. |
+| 12:00 | The user asked for every post-codegen step on both games. The list-driven steps had empty lists, and `r1_local.py` took an empty list as every function. |
+| 12:11-12:26 | Indirect call census (3 runs, 378 M calls: 67 sites promoted). `tools/form_choice.py`: four compiles of each of the 34 files, 9 minutes: 32 functions off the locals, 1,360 on the r1 mirror, 1,430 with dropped write-backs. |
+| 12:33-12:53 | Regenerated, PC build. Six every-call runs: 378.0 M calls compared, 120.7 M not comparable, 0 differences, all 646 copies compared. The generated code's own checks 0 differences. |
+| 13:01 | Switch build: NRO 31.5 MB. Hot-placement lists skipped: the user wants to try the console first. |
+| 13:05 | **Console package**: `D:\hexic\builds\2026-11-04_1305_hexichd_console1`, NRO SHA-256 `F6819DF5F2FB1406...`, source `e958e480`. **SD folder** with both games and their files: `D:\hexic\sd_card\switch`. |
+| 13:07 | That NRO in Ryujinx, shipping settings with the sampler: logo, menus, gameplay and the coloured hexagons draw; no crash. Start 12.5 s in the emulator. Render thread ahead of the game threads in the samples. |
+| 13:10 | Exit test on the packaged NRO: `ServiceAm Exit` at 2:12, no crash log. A/B list: 30 added back, since a shipping run shows those draws (the census had the fast draw off). |

@@ -65,12 +65,12 @@ PLAY = {'banjo_renut_diag_resolve_trace': 'false', 'banjo_renut_diag_gpu_shaders
         'banjo_cpu_profiler': 'false', 'renut_gpu_profile': '0.0'}
 # hexichd-nx (2026-11-04), from this game's census (docs/hexichd-notes.md): about 1,180 direct draws a frame in gameplay, not indexed, with no
 # recorded command buffers. What acts here: the fast draw (25), render states by content (28), whole-buffer copies (22, 1.9 % of draws), mesh
-# objects (42, the same draws), the capture pool (5), the record worker (14), the setters' chain, tags, compare and tags apart (20, 21, 26, 27),
-# the texture memo and skip (32, 39), resident literals (34), repeated clears (67), the provisional count (68), the machine copies (70), the
-# spin yield (78), the render thread's pin (2). Base-vertex draws (30) and merged draws (33) took 0 draws, and the record-time items (45-50)
-# have nothing to act on. 1 (a Vulkan-only key) is the do-nothing control on the Switch.
-# 19 targets x 60 s = 19 minutes a round: 57 minutes for three rounds.
-AB = {'banjo_renut_ab_targets': '"25,28,22,42,5,14,20,21,26,27,32,39,34,67,68,70,78,2,1"', 'banjo_renut_ab_s': '30',
+# objects (42, the same draws), their base-vertex draws (30: 0 in the census, which turns the fast draw off, and all of them in a shipping run), the
+# capture pool (5), the record worker (14), the setters' chain, tags, compare and tags apart (20, 21, 26, 27), the texture memo and skip (32, 39),
+# resident literals (34), repeated clears (67), the provisional count (68), the machine copies (70), the spin yield (78), the render thread's pin (2).
+# Merged draws (33) took 0 draws, and the record-time items (45-50) have nothing to act on. 1 (a Vulkan-only key) is the do-nothing control on the Switch.
+# 20 targets x 60 s = 20 minutes a round: an hour for three rounds.
+AB = {'banjo_renut_ab_targets': '"25,28,22,30,42,5,14,20,21,26,27,32,39,34,67,68,70,78,2,1"', 'banjo_renut_ab_s': '30',
       'banjo_renut_dynamic_resolution': 'false'}
 VERIFY = {k: 'true' for k in (
     'banjo_renut_fast_draw_verify', 'banjo_renut_resource_objects_verify', 'banjo_renut_fetch_cache_verify',

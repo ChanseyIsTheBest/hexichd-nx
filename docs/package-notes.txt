@@ -16,7 +16,7 @@ Which toml
 ----------
 configs/renut_play.toml  to play: diagnostics off, no stack sampler, no stall watchdog.
 configs/renut.toml       the package's hexichd.toml: the same settings with logs and the stack sampler on. Use it for a console profile.
-configs/renut_ab.toml    the in-run A/B: 19 targets, 30 s halves (target 1 does nothing, as the control), 19 minutes a round.
+configs/renut_ab.toml    the in-run A/B: 20 targets, 30 s halves (target 1 does nothing, as the control), 20 minutes a round.
                          Stay on one screen. The log's "[renut A/B]" lines give each target.
 
 What to test first
@@ -48,7 +48,8 @@ What was tested, and what was not
 ---------------------------------
 Tested on the PC (Renut on Vulkan): menus, Marathon, Timed, Survival, options, tutorial, the leaderboards screen.
 Tested in Ryujinx (deko3d): handheld and docked gameplay and clean exit with every verify key at zero differences, on the build before the
-last optimisation round. This exact NRO was packaged while its first Ryujinx run was still going, at your request.
+last optimisation round. This exact NRO, in Ryujinx with the shipped settings: logo, menus, gameplay and the coloured hexagons draw with no
+crash, and leaving from the Dashboard item exits cleanly, with no rex_crash.log. The verify keys have not been run on this exact NRO.
 
 Leaderboards shows the game's sign-in message. Achievements calls a stub, so no list appears. There is no Xbox Live here.
 
