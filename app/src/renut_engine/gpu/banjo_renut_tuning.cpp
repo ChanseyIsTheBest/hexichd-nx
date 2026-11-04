@@ -366,6 +366,14 @@ REXCVAR_DEFINE_BOOL(hexichd_user_clip_plane, true, "Banjo/Enhancements",
                     "need it, as the GPU and the emulated GPU clip with it; Renut stored it and never applied it. Off: "
                     "each half of the reflection map holds only the last of its two views, so the car reflects the "
                     "wrong scene and no sky. Costs one plane write per draw that has one on. In-run A/B target 76");
+REXCVAR_DEFINE_BOOL(hexichd_object_cache, true, "Banjo/Enhancements",
+                    "hexichd-nx (2026-11-04, from a console profile): the answer to \"is this object Renut's?\" and a game texture's shadow, "
+                    "kept per address with no lock until an object is made or freed. Exact: only fewer locks and lookups. In-run A/B target 79")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(hexichd_delta_runs, true, "Banjo/Enhancements",
+                    "hexichd-nx (2026-11-04, from a console profile): a draw's device chunks are compared in runs of four, one test a run, "
+                    "and chunk by chunk only in a run that differs. Exact: the same chunks in the same order. In-run A/B target 80")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_DEFINE_BOOL(hexichd_strip_markers, true, "Banjo/Enhancements",
                     "rr6-nx (2026-11-03): an indexed strip's restart markers (index 0xFFFF) are kept out of the vertex "
                     "range a draw converts and rewritten to the host's marker, as the GPU and the emulated GPU cut "
@@ -980,6 +988,8 @@ const char *AbName(int target) {
   case 74: return "hexichd_alpha_near_one (off half: the alpha test of >= 1 exact)";  // rr6-nx (2026-11-03)
   case 76: return "hexichd_user_clip_plane (off half: no user clip plane, the reflection map holds the wrong views)";
   case 78: return "banjo_spin_yield (off half: a generated spin loop does not give way at its db16cyc)";  // hexic2-nx (2026-11-04)
+  case 80: return "hexichd_delta_runs (off half: a draw's device chunks compared one test each)";  // hexichd-nx (2026-11-04)
+  case 79: return "hexichd_object_cache (off half: every SetTexture asks three times under locks whose object it has)";  // hexichd-nx (2026-11-04)
   case 77: return "hexichd_strip_markers (off half: a strip's restart marker counts as vertex 65535: torn meshes on deko3d)";
   case 75: return "hexichd_fetch_over_pointer (off half: a null texture pointer binds the null texture)";  // rr6-nx (2026-11-03)
   default: return "none";
@@ -1645,6 +1655,16 @@ bool FetchOverPointerOn() {
 bool UserClipPlaneOn() {
   static const bool on = REXCVAR_GET(hexichd_user_clip_plane);
   return on && g_ab_off.load(std::memory_order_relaxed) != 76;
+}
+
+bool DeltaRunsOn() {
+  static const bool on = REXCVAR_GET(hexichd_delta_runs);
+  return on && g_ab_off.load(std::memory_order_relaxed) != 80;
+}
+
+bool ObjectCacheOn() {
+  static const bool on = REXCVAR_GET(hexichd_object_cache);
+  return on && g_ab_off.load(std::memory_order_relaxed) != 79;
 }
 
 bool StripMarkersOn() {

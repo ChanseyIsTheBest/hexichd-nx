@@ -368,6 +368,8 @@ bool FogNanZeroOn();  // rr6-nx (2026-11-03, hexichd_fog_nan_zero, A/B 71)
 bool FetchOverPointerOn();  // rr6-nx (2026-11-03, hexichd_fetch_over_pointer, A/B 75)
 bool UserClipPlaneOn();  // rr6-nx (2026-11-03, hexichd_user_clip_plane, A/B 76)
 bool StripMarkersOn();   // rr6-nx (2026-11-03, hexichd_strip_markers, A/B 77)
+bool ObjectCacheOn();    // hexichd-nx (2026-11-04, hexichd_object_cache, A/B 79)
+bool DeltaRunsOn();      // hexichd-nx (2026-11-04, hexichd_delta_runs, A/B 80)
 bool GameGammaAbOff();  // rr6-nx (2026-11-03): banjo_renut_game_gamma's off half of A/B 73
 float AlphaNearOne(uint32_t func, float threshold);  // rr6-nx (2026-11-03, hexichd_alpha_near_one, A/B 74)
 bool DepthBiasKeyOn();  // rr6-nx (2026-11-03, hexichd_depth_bias): the pipelines' dynamic state

@@ -72,6 +72,10 @@ REXCVAR_DEFINE_BOOL(banjo_renut_deferred_chain, false, "Banjo/Enhancements",
                     "(emulator hangs in 4 of 8 runs with it on, 0 before). Off: a whole copy, as sa2-nx has it")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
+REXCVAR_DEFINE_BOOL(hexichd_delta_census, false, "Banjo/Enhancements",
+                    "Diagnostic: the device snapshots' report also says how often each 64-byte chunk changed between draws of a frame")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+
 namespace renut::gpu {
 
 namespace {
@@ -268,6 +272,35 @@ constexpr DeltaChunkList MakeDeltaChunkList(bool narrow) {
 }
 constexpr DeltaChunkList kDeltaAllChunks = MakeDeltaChunkList(false);
 constexpr DeltaChunkList kDeltaReadChunks = MakeDeltaChunkList(true);
+// hexichd-nx (2026-11-04): the read chunks as runs of up to kDeltaRunChunks whole, adjacent ones, each compared in one go (2.6 of 39
+// chunks differ on an average draw, so most runs are done with one test).
+constexpr u32 kDeltaRunChunks = 4;
+struct DeltaRun {
+  u16 at = 0;
+  u8 first = 0, chunks = 0;
+};
+struct DeltaRunList {
+  u32 count = 0;
+  DeltaRun run[64] = {};
+};
+constexpr DeltaRunList MakeDeltaRuns() {
+  DeltaRunList l{};
+  for (u32 k = 0; k < kDeltaReadChunks.count;) {
+    const u32 i = kDeltaReadChunks.index[k];
+    u32 n = 1;
+    while (n < kDeltaRunChunks && k + n < kDeltaReadChunks.count && kDeltaReadChunks.index[k + n] == i + n &&
+           DeltaChunkSize(i + n) == kDeltaUnitBytes && DeltaChunkOffset(i + n) == DeltaChunkOffset(i) + n * kDeltaUnitBytes &&
+           DeltaChunkSize(i) == kDeltaUnitBytes)
+      ++n;
+    l.run[l.count].at = u16(DeltaChunkOffset(i));
+    l.run[l.count].first = u8(i);
+    l.run[l.count].chunks = u8(n);
+    ++l.count;
+    k += n;
+  }
+  return l;
+}
+constexpr DeltaRunList kDeltaRuns = MakeDeltaRuns();
 static_assert(kDeltaReadChunks.count == 39);  // N&B (SA2 40)
 // Whether device byte 'at' is one the render thread reads (the verify mode compares those).
 constexpr bool DeltaByteRead(u32 at) {
@@ -501,6 +534,14 @@ DrawCapture *Capture(u32 device_va, const DrawCall &call) {
   return capture;
 }
 
+// hexichd-nx (2026-11-04): how often each chunk changes between draws of a frame (hexichd_delta_census). Which chunks this game's Flash
+// renderer ever changes decides which are compared at every draw.
+uint64_t g_chunk_census[kDeltaChunks] = {};
+bool ChunkCensusOn() {
+  static const bool on = REXCVAR_GET(hexichd_delta_census);
+  return on;
+}
+
 // banjo-nx (2026-10-20, from sa2-nx, banjo_renut_snapshot_deltas): a draw of the chain. Requires g_delta.mutex, held until the capture
 // is queued.
 DrawCapture *CaptureDelta(u32 device_va, const DrawCall &call) {
@@ -539,6 +580,30 @@ DrawCapture *CaptureDelta(u32 device_va, const DrawCall &call) {
     u32 chunks = 0;
     const DeltaChunkList &list = DeltasNarrowOn() ? kDeltaReadChunks : kDeltaAllChunks;
     const bool neon = NeonCompareOn();  // banjo-nx (from sa2-nx) (banjo_renut_neon_compare)
+    // hexichd-nx (2026-11-04, hexichd_delta_runs, A/B 80): the same chunks in the same order, but a run with no difference costs one test.
+    if (DeltasNarrowOn() && banjo::renut_gpu::DeltaRunsOn()) {
+      for (u32 r = 0; r < kDeltaRuns.count; ++r) {
+        const DeltaRun &run = kDeltaRuns.run[r];
+        const u32 whole = DeltaChunkSize(run.first);
+        if (whole == kDeltaUnitBytes ? !banjo::renut_gpu::LinesDiffer(bytes + run.at, c.shadow + run.at, run.chunks)
+                                     : std::memcmp(bytes + run.at, c.shadow + run.at, whole) == 0)
+          continue;
+        for (u32 j = 0; j < run.chunks; ++j) {
+          const u32 i = run.first + j, at = run.at + j * kDeltaUnitBytes, size = DeltaChunkSize(i);
+          const bool differs = size == kDeltaUnitBytes ? banjo::renut_gpu::Line64Differs(bytes + at, c.shadow + at, neon)
+                                                       : std::memcmp(bytes + at, c.shadow + at, size) != 0;
+          if (!differs)
+            continue;
+          std::memcpy(c.shadow + at, bytes + at, size);
+          std::memcpy(to, bytes + at, size);
+          to += size;
+          h.chunks[i / 64] |= uint64_t(1) << (i % 64);
+          ++chunks;
+          if (ChunkCensusOn())
+            ++g_chunk_census[i];
+        }
+      }
+    } else
     for (u32 k = 0; k < list.count; ++k) {
       const u32 i = list.index[k];
       const u32 at = DeltaChunkOffset(i), size = DeltaChunkSize(i);
@@ -551,6 +616,8 @@ DrawCapture *CaptureDelta(u32 device_va, const DrawCall &call) {
       to += size;
       h.chunks[i / 64] |= uint64_t(1) << (i % 64);
       ++chunks;
+      if (ChunkCensusOn())
+        ++g_chunk_census[i];
     }
     for (const auto [dirty, base] : {std::pair{vs, kDeltaVertexF}, std::pair{ps, kDeltaPixelF}}) {
       ForEachGroupRun(dirty, [&](u32 first, u32 count) {
@@ -625,6 +692,13 @@ std::string SnapshotDeltaReport() {
   if (DeltasVerifyOn()) {
     line += fmt::format("; verify: {} draws checked, {} differ", g_delta_verified.exchange(0, std::memory_order_relaxed),
                         g_delta_differ.exchange(0, std::memory_order_relaxed));
+  }
+  if (ChunkCensusOn()) {
+    line += "; chunks changed (offset:count, cumulative):";
+    for (u32 i = 0; i < kDeltaChunks; ++i) {
+      if (g_chunk_census[i])
+        line += fmt::format(" {:X}:{}", DeltaChunkOffset(i), g_chunk_census[i]);
+    }
   }
   return line;
 }

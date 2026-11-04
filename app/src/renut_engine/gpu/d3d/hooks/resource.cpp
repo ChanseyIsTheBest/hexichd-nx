@@ -29,6 +29,7 @@
 #include <rex/hook.h>
 
 #include "renut_engine/gpu/banjo_renut_select.h"
+#include "renut_engine/gpu/banjo_renut_tuning.h"
 #include <rex/types.h>
 
 #include "renut_engine/gpu/guest/command_buffers.h"
@@ -77,6 +78,7 @@ u32 AllocHeader(u32 size) {
   const u32 va = REX_KERNEL_MEMORY()->HostToGuestVirtual(host);
   std::lock_guard lock(g_owned_mutex);
   g_owned_headers.insert(va);
+  records::NoteObjectChange();
   return va;
 }
 
@@ -90,6 +92,7 @@ void FreeHeader(u32 va) {
     std::lock_guard lock(g_owned_mutex);
     if (!g_owned_headers.erase(va))
       return;
+    records::NoteObjectChange();
   }
   records::FreeRaw(GuestPtr<void>(va));
 }
@@ -1349,9 +1352,31 @@ std::unordered_map<u32, u32> g_hexichd_texture_shadows;  // the game's texture -
 std::unordered_map<u32, u32> g_hexichd_surface_shadows;  // the game's surface -> Renut's surface record
 std::unordered_map<u32, u32> g_hexichd_surface_guests;   // Renut's surface record -> the game's surface
 
+// hexichd-nx (2026-11-04, console profile, Marathon, main thread at 100 % of a core): every SetTexture asked this three times, each a
+// mutex, a shared lock and two hash lookups: with the shadow's own lock, 5.8 % of the main thread and most of its 9.3 % in locks. The
+// answers are kept per address until any object is made or freed (records::ObjectChanges). One word an entry, so no lock and no tearing;
+// any thread may use them, as the slow answer is the same. Key hexichd_object_cache, A/B 79.
+constexpr u32 kRr6CacheEntries = 512;
+std::atomic<uint64_t> g_rr6_object_cache[kRr6CacheEntries];
+std::atomic<uint64_t> g_rr6_shadow_cache[kRr6CacheEntries];
+inline u32 Rr6CacheIndex(u32 va) {
+  return (va >> 4) & (kRr6CacheEntries - 1);
+}
+
 bool Rr6IsRenutObject(u32 resource) {
+  const bool use_cache = banjo::renut_gpu::ObjectCacheOn();
+  const u32 changes = records::ObjectChanges() & 0x7FFFFFFFu;
+  auto &entry = g_rr6_object_cache[Rr6CacheIndex(resource)];
+  if (use_cache) {
+    const uint64_t e = entry.load(std::memory_order_relaxed);
+    if (u32(e >> 32) == resource && (u32(e) >> 1) == changes)
+      return (e & 1) != 0;
+  }
   RecordKind kind;
-  return OwnsHeader(resource) || records::Lookup(resource, &kind);
+  const bool renut = OwnsHeader(resource) || records::Lookup(resource, &kind);
+  if (use_cache && resource)
+    entry.store((uint64_t(resource) << 32) | (uint64_t(changes) << 1) | uint64_t(renut), std::memory_order_relaxed);
+  return renut;
 }
 
 // XDK 2135's GetType numbers (surface 1, volume 2, texture 3, volume texture 4, cube 5, vertex buffer 6, index buffer 7).
@@ -1374,22 +1399,31 @@ u32 Rr6ShadowTexture(u32 texture) {
   const auto *g = GuestPtr<const be_u32>(texture);
   if (!g)
     return 0;
-  std::lock_guard lock(g_hexichd_shadow_mutex);
-  u32 &shadow = g_hexichd_texture_shadows[texture];
-  if (!shadow) {
-    shadow = AllocHeader(0x34);
-    if (!shadow)
-      return 0;
-    auto *t = GuestPtr<be_u32>(shadow);
-    t[0] = 0x100003u;    // Common: a texture (as SetTextureHeader writes it)
-    t[1] = 1u;           // ReferenceCount
-    t[5] = 0xFFFF0000u;  // BaseFlush
-    t[6] = 0xFFFF0000u;  // MipFlush
+  // hexichd-nx (2026-11-04): the shadow of an address without the lock and the map once it is known (Rr6DropShadow forgets it). The
+  // fetch constant is still copied at every use, as before.
+  auto &entry = g_rr6_shadow_cache[Rr6CacheIndex(texture)];
+  const uint64_t e = banjo::renut_gpu::ObjectCacheOn() ? entry.load(std::memory_order_relaxed) : 0;
+  u32 known = u32(e >> 32) == texture ? u32(e) : 0;
+  if (!known) {
+    std::lock_guard lock(g_hexichd_shadow_mutex);
+    u32 &shadow = g_hexichd_texture_shadows[texture];
+    if (!shadow) {
+      shadow = AllocHeader(0x34);
+      if (!shadow)
+        return 0;
+      auto *t = GuestPtr<be_u32>(shadow);
+      t[0] = 0x100003u;    // Common: a texture (as SetTextureHeader writes it)
+      t[1] = 1u;           // ReferenceCount
+      t[5] = 0xFFFF0000u;  // BaseFlush
+      t[6] = 0xFFFF0000u;  // MipFlush
+    }
+    known = shadow;
+    entry.store((uint64_t(texture) << 32) | known, std::memory_order_relaxed);
   }
-  auto *t = GuestPtr<be_u32>(shadow);
+  auto *t = GuestPtr<be_u32>(known);
   for (u32 i = 0; i < 6; ++i)
     t[7 + i] = u32(g[4 + i]);  // the fetch constant: XDK 2135's +16 to N&B's +0x1C
-  return shadow;
+  return known;
 }
 
 // A game surface's Renut record: made at the game's CreateSurface (the format is only an argument there); a surface the
@@ -1444,6 +1478,7 @@ u32 Rr6ShadowSurface(u32 surface) {
 // A game object destroyed: what Renut holds for it goes after the work queued before it.
 void Rr6DropShadow(u32 resource) {
   u32 shadow = 0, record = 0;
+  g_rr6_shadow_cache[Rr6CacheIndex(resource)].store(0, std::memory_order_relaxed);
   {
     std::lock_guard lock(g_hexichd_shadow_mutex);
     auto it = g_hexichd_texture_shadows.find(resource);

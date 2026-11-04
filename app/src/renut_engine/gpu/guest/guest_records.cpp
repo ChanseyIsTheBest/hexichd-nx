@@ -27,6 +27,7 @@ bool g_oom_logged = false;
 std::shared_mutex g_registry_mutex;
 std::unordered_map<u32, RecordKind> g_registry;
 std::atomic<uint64_t> g_generation{0};
+std::atomic<uint32_t> g_object_changes{1};
 
 } // namespace
 
@@ -90,15 +91,25 @@ void FreeRaw(void *host) {
     o1heapFree(g_heap, host);
 }
 
+uint32_t ObjectChanges() {
+  return g_object_changes.load(std::memory_order_relaxed);
+}
+
+void NoteObjectChange() {
+  g_object_changes.fetch_add(1, std::memory_order_release);
+}
+
 void Register(u32 guest_va, RecordKind kind) {
   std::unique_lock lock(g_registry_mutex);
   g_registry[guest_va] = kind;
+  NoteObjectChange();
 }
 
 void Unregister(u32 guest_va) {
   std::unique_lock lock(g_registry_mutex);
   g_registry.erase(guest_va);
   g_generation.fetch_add(1, std::memory_order_release);
+  NoteObjectChange();
 }
 
 uint64_t Generation() {

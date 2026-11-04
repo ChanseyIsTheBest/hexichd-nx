@@ -45,6 +45,10 @@ bool Lookup(u32 guest_va, RecordKind *out_kind);
 // Changes whenever a record is unregistered: lookups cached under an older
 // value may name a destroyed record.
 uint64_t Generation();
+// hexichd-nx (2026-11-04): changes when an address may start or stop being one of Renut's objects (a record, or a header the native
+// D3D allocated), so a cached answer to "is this Renut's?" stays exact.
+uint32_t ObjectChanges();
+void NoteObjectChange();
 
 // A block of the guest physical window for renderer-owned guest memory (the
 // Begin*Vertices scratch). Never freed. 0 on failure.

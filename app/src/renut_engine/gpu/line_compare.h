@@ -24,6 +24,24 @@ inline bool Line64DiffersPlain(const uint8_t *a, const uint8_t *b) {
   return diff != 0;
 }
 
+// hexichd-nx (2026-11-04): do any of these 64-byte lines differ? One test for all of them: on the console, the test after each line
+// (umaxv, fmov, a branch) was half of the compare loop's samples. The same answer as testing each.
+inline bool LinesDiffer(const uint8_t *a, const uint8_t *b, uint32_t lines) {
+#if defined(__aarch64__)
+  uint8x16_t acc = vdupq_n_u8(0);
+  for (uint32_t i = 0; i < lines; ++i, a += 64, b += 64) {
+    const uint8x16x4_t x = vld1q_u8_x4(a);
+    const uint8x16x4_t y = vld1q_u8_x4(b);
+    acc = vorrq_u8(acc, vorrq_u8(vorrq_u8(veorq_u8(x.val[0], y.val[0]), veorq_u8(x.val[1], y.val[1])),
+                                 vorrq_u8(veorq_u8(x.val[2], y.val[2]), veorq_u8(x.val[3], y.val[3]))));
+  }
+  const uint64x2_t d = vreinterpretq_u64_u8(acc);
+  return (vgetq_lane_u64(d, 0) | vgetq_lane_u64(d, 1)) != 0;
+#else
+  return std::memcmp(a, b, size_t(lines) * 64) != 0;
+#endif
+}
+
 inline bool Line64Differs(const uint8_t *a, const uint8_t *b, bool neon) {
 #if defined(__aarch64__)
   if (neon) {
