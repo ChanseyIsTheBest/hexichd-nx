@@ -340,6 +340,8 @@ def hand_entries(path=HAND):
                 entry['exact'] = set(value.split(','))
             elif key == 'id':
                 entry['id'] = value
+            elif key == 'open':  # hexichd-nx: see call_text
+                entry['open'] = value == '1'
             else:
                 sys.exit(f'localize_native: hand.txt: {part!r} in the line of {name}')
         out[name] = entry
@@ -823,6 +825,13 @@ def localize(index, hooks, reach, root, what, opts, out_dir, quiet=False, hand=N
                         'if (s.Stopped()) return; } else if (s.Stopped()) return;%s }' % (hand[b]['id'], b, after))
             return '{ ' + before + 'f_%s(ctx, base, s); if (s.Stopped()) return;' % b + after + ' }'
         stats['calls_open'] += 1
+        # hexichd-nx (2026-11-04): hand.txt open=1, a native with a fast path for a callee that cannot be a copy of its caller's (it makes real calls
+        # on its slow path): asked in the caller's copy, with only the registers it reads handed over. It changes no register, so nothing is loaded
+        # back on its path. The guard stops at this call as at any real call, and checks the native through the callee's own hook.
+        if b in hand and hand[b].get('open'):
+            sync = ''.join(f'ctx.{r} = l_{r}; ' for r in ('r1', 'r3') if r in my_regs)
+            return ('{ if (s.Open()) return; ' + sync + 'if (!::banjo::hand::n_%s::Native(ctx, base, s)) { ' % hand[b]['id'] + before +
+                    m.group(0) + after + ' } }')
         return '{ if (s.Open()) return; ' + before + m.group(0) + after + ' }'
 
     # Callee copies the compiler must inline into their callers: then a guest call inside the copy is no call at all,

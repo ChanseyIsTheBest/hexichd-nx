@@ -301,6 +301,30 @@ constexpr DeltaRunList MakeDeltaRuns() {
   return l;
 }
 constexpr DeltaRunList kDeltaRuns = MakeDeltaRuns();
+// hexichd-nx (2026-11-04, hexichd_delta_hot_chunks, A/B 83): six PC runs through every mode and menu (hexichd_delta_census, 160 M draws): of the 39
+// read chunks only eight ever changed between draws of a frame. A draw whose state chunks (the window packets, the vertex declaration, the
+// shaders) are unchanged compares only the fetch and stream chunks, which change at nearly every draw; every eighth draw, and any draw whose
+// state chunks changed, compares them all. The frame's first draw copies the whole device. banjo_renut_snapshot_deltas_verify is what checks it.
+constexpr u32 kDeltaStateChunks[] = {0x28C0, 0x2900, 0x2E40};  // and the last chunk, 0x3180, of 32 bytes
+static_assert(d3d::kDeviceSnapshotSize == 0x3180 + 32);
+constexpr u32 DeltaChunkAt(u32 at) {
+  for (u32 i = 0; i < kDeltaChunks; ++i)
+    if (DeltaChunkOffset(i) == at)
+      return i;
+  return kDeltaChunks;
+}
+constexpr DeltaRunList MakeDeltaHotRuns() {
+  DeltaRunList l{};
+  for (const u32 at : {0x480u, 0x740u, 0x3080u, 0x30C0u}) {
+    l.run[l.count].at = u16(at);
+    l.run[l.count].first = u8(DeltaChunkAt(at));
+    l.run[l.count].chunks = 1;
+    ++l.count;
+  }
+  return l;
+}
+constexpr DeltaRunList kDeltaHotRuns = MakeDeltaHotRuns();
+static_assert(DeltaChunkAt(0x480) < DeltaChunkAt(0x740) && DeltaChunkAt(0x740) < DeltaChunkAt(0x3080) && DeltaChunkAt(0x3080) < DeltaChunkAt(0x30C0));
 static_assert(kDeltaReadChunks.count == 39);  // N&B (SA2 40)
 // Whether device byte 'at' is one the render thread reads (the verify mode compares those).
 constexpr bool DeltaByteRead(u32 at) {
@@ -582,8 +606,18 @@ DrawCapture *CaptureDelta(u32 device_va, const DrawCall &call) {
     const bool neon = NeonCompareOn();  // banjo-nx (from sa2-nx) (banjo_renut_neon_compare)
     // hexichd-nx (2026-11-04, hexichd_delta_runs, A/B 80): the same chunks in the same order, but a run with no difference costs one test.
     if (DeltasNarrowOn() && banjo::renut_gpu::DeltaRunsOn()) {
-      for (u32 r = 0; r < kDeltaRuns.count; ++r) {
-        const DeltaRun &run = kDeltaRuns.run[r];
+      bool all = !banjo::renut_gpu::DeltaHotChunksOn() || (c.deltas & 7) == 0;
+      for (const u32 at : kDeltaStateChunks)
+        all = all || banjo::renut_gpu::LinesDiffer(bytes + at, c.shadow + at, 1);
+      if (!all) {
+        uint64_t x[4], y[4];
+        std::memcpy(x, bytes + 0x3180, 32);
+        std::memcpy(y, c.shadow + 0x3180, 32);
+        all = ((x[0] ^ y[0]) | (x[1] ^ y[1]) | (x[2] ^ y[2]) | (x[3] ^ y[3])) != 0;
+      }
+      const DeltaRunList &runs = all ? kDeltaRuns : kDeltaHotRuns;
+      for (u32 r = 0; r < runs.count; ++r) {
+        const DeltaRun &run = runs.run[r];
         const u32 whole = DeltaChunkSize(run.first);
         if (whole == kDeltaUnitBytes ? !banjo::renut_gpu::LinesDiffer(bytes + run.at, c.shadow + run.at, run.chunks)
                                      : std::memcmp(bytes + run.at, c.shadow + run.at, whole) == 0)

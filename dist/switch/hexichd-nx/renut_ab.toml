@@ -570,7 +570,7 @@ renut_shadow_resolution = "1x"
 renut_ambient_occlusion = "Half"
 banjo_xma_frame_cache = false
 license_mask = 1
-banjo_renut_ab_targets = "79,80,25,28,22,30,42,5,14,20,21,26,27,32,39,34,67,68,70,78,2,1"
+banjo_renut_ab_targets = "79,80,83,81,82,25,28,22,30,42,5,14,20,21,26,27,32,39,34,67,68,70,78,2,1"
 banjo_renut_ab_s = 30
 
 [input_p1]

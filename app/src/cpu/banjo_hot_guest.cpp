@@ -131,16 +131,30 @@ REXCVAR_DEFINE_BOOL(banjo_hand_xaudio_mix, true, "Banjo/Enhancements",
                     "(one for the range); checked by the guard of the router's hook")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
+REXCVAR_DEFINE_BOOL(hexichd_hand_value_release, true, "Banjo/Enhancements",
+                    "Hand-written native of Flash's value release (sub_92055D00, about 2,300 calls a frame): the decrement inline in its "
+                    "callers' copies; the last reference goes to the generated copy. Checked by the guards of those hooks. In-run A/B target 82")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(hexichd_hand_child_prefetch, true, "Banjo/Enhancements",
+                    "The display list walkers (sub_9206C070, sub_9206C9F8) read their first children and objects ahead, so that the cache "
+                    "misses the console shows there overlap. Only reads and prefetches. In-run A/B target 81")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+
 namespace banjo::hand {
 
 uint8_t g_state[kNatives] = {};
 
 namespace {
-constexpr const char* kNames[kNatives] = {"none"};
-constexpr const char* kKeys[kNatives] = {"none"};
-// hexic2-nx: no hand-written native yet (hot/hand.txt: only from a console profile). Each one adds its enum value,
-// its name, its key and its case here.
-bool Own(uint32_t) { return false; }
+constexpr const char* kNames[kNatives] = {"Flash value release", "display list child prefetch"};
+constexpr const char* kKeys[kNatives] = {"hexichd_hand_value_release", "hexichd_hand_child_prefetch"};
+// hexic2-nx: hot/hand.txt lists them, only from a console profile. Each one adds its enum value, its name, its key and its case here.
+bool Own(uint32_t which) {
+  switch (which) {
+    case kValueRelease: return REXCVAR_GET(hexichd_hand_value_release);
+    case kChildPrefetch: return REXCVAR_GET(hexichd_hand_child_prefetch);
+    default: return false;
+  }
+}
 // banjo_hot_count: calls by size, bucket 0 = size 0, bucket k = sizes [2^(k-1), 2^k).
 std::atomic<uint64_t> g_sizes[kNatives][34];
 }  // namespace

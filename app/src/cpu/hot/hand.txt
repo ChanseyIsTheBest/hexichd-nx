@@ -4,4 +4,7 @@
 #
 #   <address or generated name> [id=<namespace suffix>] [exact=<registers>]   # evidence
 #
-# None yet: no console profile of this game exists.
+# Console profile of 2026-11-04 13:11 (build e958e480, handheld, Marathon), the main thread at 100 % of a core at 46-58 fps:
+92055D00 open=1 exact=r3,r4,r5,r6,r7,r8,r9,r10,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12,v13   # main thread 2.5 %, 2,300 calls a frame: a hook and every register handed over for one decrement; removable
+9206C070 exact=r3,r4,r5,r6,r7,r8,r9,r10,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12,v13   # main thread 9.1 %: 60 % of its samples on the loads of each child and its object, cache misses; read ahead so they overlap, the copy unchanged
+9206C9F8 exact=r3,r4,r5,r6,r7,r8,r9,r10,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12,v13   # main thread 2.7 %: 80 % of its samples on the same loads; read ahead, the copy unchanged

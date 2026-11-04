@@ -370,6 +370,11 @@ REXCVAR_DEFINE_BOOL(hexichd_object_cache, true, "Banjo/Enhancements",
                     "hexichd-nx (2026-11-04, from a console profile): the answer to \"is this object Renut's?\" and a game texture's shadow, "
                     "kept per address with no lock until an object is made or freed. Exact: only fewer locks and lookups. In-run A/B target 79")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(hexichd_delta_hot_chunks, true, "Banjo/Enhancements",
+                    "hexichd-nx (2026-11-04, from a console profile and a census of every mode): a draw compares only the device chunks this game "
+                    "changes within a frame; every eighth draw and any draw that changes state compares all 39. No difference in any tested mode. "
+                    "Should a state no run saw change within a frame, it reaches the renderer up to 7 draws late, within that frame only. In-run A/B target 83")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 REXCVAR_DEFINE_BOOL(hexichd_delta_runs, true, "Banjo/Enhancements",
                     "hexichd-nx (2026-11-04, from a console profile): a draw's device chunks are compared in runs of four, one test a run, "
                     "and chunk by chunk only in a run that differs. Exact: the same chunks in the same order. In-run A/B target 80")
@@ -988,6 +993,9 @@ const char *AbName(int target) {
   case 74: return "hexichd_alpha_near_one (off half: the alpha test of >= 1 exact)";  // rr6-nx (2026-11-03)
   case 76: return "hexichd_user_clip_plane (off half: no user clip plane, the reflection map holds the wrong views)";
   case 78: return "banjo_spin_yield (off half: a generated spin loop does not give way at its db16cyc)";  // hexic2-nx (2026-11-04)
+  case 81: return "hexichd_hand_child_prefetch (off half: the display list walkers take their cache misses one at a time)";  // hexichd-nx (2026-11-04)
+  case 82: return "hexichd_hand_value_release (off half: every value release through its hook)";  // hexichd-nx (2026-11-04)
+  case 83: return "hexichd_delta_hot_chunks (off half: every draw compares all 39 device chunks)";  // hexichd-nx (2026-11-04)
   case 80: return "hexichd_delta_runs (off half: a draw's device chunks compared one test each)";  // hexichd-nx (2026-11-04)
   case 79: return "hexichd_object_cache (off half: every SetTexture asks three times under locks whose object it has)";  // hexichd-nx (2026-11-04)
   case 77: return "hexichd_strip_markers (off half: a strip's restart marker counts as vertex 65535: torn meshes on deko3d)";
@@ -1655,6 +1663,11 @@ bool FetchOverPointerOn() {
 bool UserClipPlaneOn() {
   static const bool on = REXCVAR_GET(hexichd_user_clip_plane);
   return on && g_ab_off.load(std::memory_order_relaxed) != 76;
+}
+
+bool DeltaHotChunksOn() {
+  static const bool on = REXCVAR_GET(hexichd_delta_hot_chunks);
+  return on && g_ab_off.load(std::memory_order_relaxed) != 83;
 }
 
 bool DeltaRunsOn() {

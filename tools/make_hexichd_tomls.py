@@ -69,9 +69,9 @@ PLAY = {'banjo_renut_diag_resolve_trace': 'false', 'banjo_renut_diag_gpu_shaders
 # capture pool (5), the record worker (14), the setters' chain, tags, compare and tags apart (20, 21, 26, 27), the texture memo and skip (32, 39),
 # resident literals (34), repeated clears (67), the provisional count (68), the machine copies (70), the spin yield (78), the render thread's pin (2).
 # Merged draws (33) took 0 draws, and the record-time items (45-50) have nothing to act on. 1 (a Vulkan-only key) is the do-nothing control on the Switch.
-# 79 and 80 first: the object cache and the run compare, from the first console profile.
-# 22 targets x 60 s = 22 minutes a round: 66 minutes for three rounds.
-AB = {'banjo_renut_ab_targets': '"79,80,25,28,22,30,42,5,14,20,21,26,27,32,39,34,67,68,70,78,2,1"', 'banjo_renut_ab_s': '30',
+# First, from the first console profile: 79 the object cache, 80 the run compare, 83 the hot chunks, 81 the read-ahead, 82 the value release.
+# 25 targets x 60 s = 25 minutes a round.
+AB = {'banjo_renut_ab_targets': '"79,80,83,81,82,25,28,22,30,42,5,14,20,21,26,27,32,39,34,67,68,70,78,2,1"', 'banjo_renut_ab_s': '30',
       'banjo_renut_dynamic_resolution': 'false'}
 VERIFY = {k: 'true' for k in (
     'banjo_renut_fast_draw_verify', 'banjo_renut_resource_objects_verify', 'banjo_renut_fetch_cache_verify',

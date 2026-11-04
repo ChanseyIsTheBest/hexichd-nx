@@ -60,7 +60,9 @@ namespace banjo::hand {
 // katamari-nx: kMatCopy / kMatMul / kMatTranslation are Beautiful Katamari's (the end of this file); kMemset serves its
 // C runtime memset too. N&B's other natives stay for reference: hand.txt does not list them here, so they never compile.
 enum : uint32_t {
-  kNatives = 1  // none yet: hand.txt is empty until a console profile
+  kValueRelease = 0,   // hexichd-nx: sub_92055D00
+  kChildPrefetch = 1,  // hexichd-nx: sub_9206C070, sub_9206C9F8
+  kNatives = 2
 };
 extern uint8_t g_state[kNatives];
 uint8_t Init(uint32_t which);
@@ -170,5 +172,101 @@ struct B16 {
 }
 
 }  // namespace detail
+
+// hexichd-nx (2026-11-04): from the first console profile, Marathon, main thread at 100 % of a core (hand.txt has the evidence).
+
+namespace detail {
+[[gnu::always_inline]] inline uint32_t Load32(uint8_t* base, uint32_t a) {
+  uint32_t v;
+  std::memcpy(&v, ::banjo::hot::Raw(base, a), 4);
+  return __builtin_bswap32(v);
+}
+[[gnu::always_inline]] inline void Store32(uint8_t* base, uint32_t a, uint32_t value) {
+  const uint32_t v = __builtin_bswap32(value);
+  std::memcpy(::banjo::hot::Raw(base, a), &v, 4);
+}
+
+// Flash's display lists: a vector of children at list + 4 (begin) and list + 8 (end), each child's first word its object. The walkers
+// below stop at every child on loads of the child and of its object (the console's samples: 60 % of sub_9206C070's on those loads, 80 %
+// of sub_9206C9F8's). These read what the walker is about to read, a dozen children ahead, so that their misses overlap instead of
+// coming one at a time. Only reads and prefetches: nothing of the guest's changes, and no address the walker does not read itself.
+constexpr uint32_t kPrefetchChildren = 12;
+[[gnu::always_inline]] inline void PrefetchChildren(uint8_t* base, uint32_t list) {
+  const uint32_t begin = Load32(base, list + 4);
+  if (!begin) {
+    return;
+  }
+  uint32_t n = (Load32(base, list + 8) - begin) >> 2;
+  n = n < kPrefetchChildren ? n : kPrefetchChildren;
+  uint32_t child[kPrefetchChildren];
+  for (uint32_t i = 0; i < n; ++i) {
+    child[i] = Load32(base, begin + i * 4);
+    if (child[i]) {
+      __builtin_prefetch(::banjo::hot::Raw(base, child[i]));
+    }
+  }
+  for (uint32_t i = 0; i < n; ++i) {
+    if (child[i]) {
+      const uint32_t object = Load32(base, child[i]);
+      if (object) {
+        uint8_t* o = ::banjo::hot::Raw(base, object);
+        __builtin_prefetch(o);
+        __builtin_prefetch(o + 64);
+      }
+    }
+  }
+}
+}  // namespace detail
+
+// sub_92055D00: a Flash value's release, r3 -> { count, type, ... }. About 2,300 calls a frame. All but the last release only decrement,
+// and pay a hook, the hand-over of every register and four stack words for it. Here, inline in its callers' copies: the same four stack
+// words and the decrement. The last reference declines: the generated copy does it all.
+namespace n_92055D00 {
+template <class S>
+[[gnu::always_inline]] inline bool Native(PPCContext& __restrict ctx, uint8_t* base, [[maybe_unused]] S& s) {
+  if (!On(kValueRelease) || ::banjo::renut_gpu::g_ab_off.load(std::memory_order_relaxed) == 82) [[unlikely]] return false;
+  const uint32_t p = ctx.r3.u32;
+  if (!detail::Straight(p, 4)) [[unlikely]] return false;
+  const uint32_t count = detail::Load32(base, p);
+  if (count == 1) return false;
+  s.Hand(kValueRelease, 0);
+  const uint32_t sp = ctx.r1.u32;
+  if (!s.Note(sp - 8, 4)) [[unlikely]] return true;
+  detail::Store32(base, sp - 8, uint32_t(ctx.lr));
+  if (!s.Note(sp - 24, 16)) [[unlikely]] return true;
+  std::memset(::banjo::hot::Raw(base, sp - 24), 0, 16);  // r30 and r31, this function's locals, as generated: zero
+  if (!s.Note(sp - 112, 4)) [[unlikely]] return true;
+  detail::Store32(base, sp - 112, sp);
+  if (!s.Note(p, 4)) [[unlikely]] return true;
+  ::banjo::hot::Card(base, p, 4);
+  detail::Store32(base, p, count - 1);
+  return true;
+}
+}  // namespace n_92055D00
+
+// sub_9206C070: a display list updated from another: r3 the list, r5 the new one (or null). Asks first, then the copy runs.
+namespace n_9206C070 {
+template <class S>
+[[gnu::always_inline]] inline bool Native(PPCContext& __restrict ctx, uint8_t* base, [[maybe_unused]] S& s) {
+  if (!On(kChildPrefetch) || ::banjo::renut_gpu::g_ab_off.load(std::memory_order_relaxed) == 81) [[unlikely]] return false;
+  s.Hand(kChildPrefetch, 0);
+  detail::PrefetchChildren(base, ctx.r3.u32);
+  if (ctx.r5.u32) {
+    detail::PrefetchChildren(base, ctx.r5.u32);
+  }
+  return false;
+}
+}  // namespace n_9206C070
+
+// sub_9206C9F8: a display list drawn: r3 the list. Asks first, then the copy runs.
+namespace n_9206C9F8 {
+template <class S>
+[[gnu::always_inline]] inline bool Native(PPCContext& __restrict ctx, uint8_t* base, [[maybe_unused]] S& s) {
+  if (!On(kChildPrefetch) || ::banjo::renut_gpu::g_ab_off.load(std::memory_order_relaxed) == 81) [[unlikely]] return false;
+  s.Hand(kChildPrefetch, 0);
+  detail::PrefetchChildren(base, ctx.r3.u32);
+  return false;
+}
+}  // namespace n_9206C9F8
 
 }  // namespace banjo::hand
