@@ -58,7 +58,9 @@ What stood between the first link and gameplay on Renut, in order:
 
 For the record, as it cost about an hour: I took this for a Renut bug because the reference disagreed. Ruled out by test, before the console shots arrived: frame rate (capped at 60), the non-CPU enhancements, device snapshot deltas, the stream cache, card proofs, and a late upload of the colour table. What the effect is, from draw logs and skipping classes of draws: 256x256 bitmaps drawn through the hexagon stencil mask, with Flash's colour transform. `texture × c0 + c1`, with `c0 = 0.398` and `c1 = (0.273, 0.508, 0.594)` on a white texel, gives exactly `(171, 231, 253)`. I did not find why the emulated GPU drops them, and it is not needed for this port.
 
-So **the emulated GPU is not a safe reference for this game's masked bitmaps.** Console shots outrank it.
+Every way of running the emulated GPU was tried, at the user's suggestion, on the same scripted path (`out/pc_runs/ref_*`): Direct3D 12 on the NVIDIA GPU with `render_target_path_d3d12=rov` and `rtv`, Vulkan on it with `render_target_path_vulkan=fsi` and `fbo`, and earlier Direct3D 12 on the AMD adapter. None draws the coloured hexagons; their coloured captures are the title's falling gems only. As all the render paths lose them alike, the cause is probably not stencil or EDRAM handling, and the guest may take another route under the emulated GPU. That is a guess, not tested.
+
+So **the emulated GPU is not a safe reference for this game's masked bitmaps, in any mode.** Console shots outrank it.
 
 Flash's colour table, also from that work: `sub_9209B100` keeps up to 1024 de-duplicated colours in a 1024x1 texture, `sub_9209AF80` reads an entry on the CPU and writes it inline to pixel shader constant c2 at `device+6048`.
 

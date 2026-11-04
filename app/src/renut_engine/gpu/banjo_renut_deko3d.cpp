@@ -449,11 +449,6 @@ void InstallShaderCache() {
   options.msaaPositions = Deko3DMsaaPositionsOn();  // 2026-10-30, from sasrt-nx
   options.alphaToCoverageDither = Deko3DA2cDitherOn();
   options.stripRestart = Deko3DStripRestartOn();
-  options.readWait = Deko3DReadWaitOn();  // rr6-nx (2026-11-03, from sasrt-nx): console tests
-  options.writeWait = Deko3DWriteWaitOn();
-  options.clearWait = Deko3DClearWaitOn();
-  options.fullBarriers = Deko3DFullBarriersOn();
-  options.colorCompression = Deko3DColorCompressionOn();  // rr6-nx (2026-11-04): console test 10
   options.vsOutputs = Deko3DVsOutputsOn();
   options.uamFlags = Deko3DUamFlags();
   options.mergeBarriers = Deko3DBarrierMergeOn();  // banjo-nx (2026-10-19, GPU)

@@ -14,13 +14,13 @@ import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIST = os.path.join(ROOT, "dist", "switch", "hexichd-nx")
 OUT = os.path.join(ROOT, 'out', 'emu')
-# Hexic 2 (out/pc_runs/play1): START at the title, then A through the main menu and the difficulty menu into a game; A presses in a
-# game only swap pieces. The emulator starts slower than the PC, so the presses begin later and there are more than it needs.
-PAD = 'input_script = "60:START@1.5,70:A@0.4,80:A@0.4,90:A@0.4,100:A,110:A,120:A,130:A,140:A,150:A,160:A"\ninput_script_sticks = 170\n'
+# Hexic HD (out/pc_runs/r11): A at the title, then A through the main menu, the difficulty menu and the tutorial's Continue into a game; A
+# presses in a game only rotate pieces. The emulator starts slower than the PC, so the presses begin later and there are more than it needs.
+PAD = 'input_script = "60:A@1.5,72:A@0.4,84:A@0.4,96:A@0.4,108:A@0.4,120:A@0.4,132:A@0.4,144:A@0.4,156:A@0.4"\ninput_script_sticks = 170\n'
 NO_PAD = 'input_script = ""\ninput_script_sticks = 0\n'
 CAPTURES = 'nfsmw_captura_cada_s = 15\nnfsmw_captura_max = 60\n'
 # A longer stretch of play, with the stick moving the cursor, for profiles.
-GAME = 'input_script = "60:START@1.5,70:A@0.4,80:A@0.4,90:A@0.4,100:A,110:A,120:A,130:A,140:A,150:A,160:A"\ninput_script_sticks = 170\n'
+GAME = PAD
 # The request's check of each enhancement: its A/B target flipping with the verify keys on (0 differences either way). 8 s
 # halves over the shipped list: a check of the picture and the counts, not a measurement (that is renut_ab.toml's, on the console).
 AB_LIST = next(l for l in open(os.path.join(DIST, 'renut_ab.toml'), encoding='utf-8') if l.startswith('banjo_renut_ab_targets'))
@@ -40,8 +40,8 @@ TESTS = {
     # The census of banjo-nx's porting guide, section 2.
     'emu_census.toml': ('renut.toml', PAD + CAPTURES + 'banjo_renut_diag_fast_census = true\nbanjo_renut_diag_shadow_census = true\n'
                                                        'banjo_renut_diag_unleashed_census = true\nbanjo_renut_diag_draw_kinds = true\n'),
-    # The start's "[boot]" line and leaving from the main menu's last item, as the user's console run: the toml the SD folder ships.
-    'emu_exit.toml': ('renut.toml', 'input_script = "60:START@1.5,72:DOWN@0.3,75:DOWN@0.3,78:DOWN@0.3,81:DOWN@0.3,84:DOWN@0.3,88:A@0.4,94:A@0.4,100:A@0.4"\n'
+    # The start's "[boot]" line and leaving from the main menu's last item (Xbox Dashboard, the 8th), as the user's console run: the toml the SD folder ships.
+    'emu_exit.toml': ('renut.toml', 'input_script = "60:A@1.5,72:DOWN@0.3,75:DOWN@0.3,78:DOWN@0.3,81:DOWN@0.3,84:DOWN@0.3,87:DOWN@0.3,90:DOWN@0.3,94:A@0.4,100:A@0.4,106:A@0.4"\n'
                                     'input_script_sticks = 0\nnfsmw_captura_cada_s = 5\nnfsmw_captura_max = 60\n'),
 }
 
