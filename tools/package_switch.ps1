@@ -32,7 +32,8 @@ Copy-Item $nro (Join-Path $sd "hexichd-nx.nro")
 $dist = Join-Path $root "dist\switch\hexichd-nx"
 # The one toml the NRO reads (src/renut_app.h, OnConfigurePaths): under any other name it does nothing on the console.
 $builtin = Select-String -Path (Join-Path $b "CMakeCache.txt") -Pattern "^HEXICHD_BUILTIN_CONFIG:BOOL=ON" -Quiet
-Copy-Item (Join-Path $dist "renut.toml") (Join-Path $sd $(if ($builtin) { "hexichd.toml" } else { "renut.toml" }))
+# 2026-11-04: the short player file, the user's request; configs/renut.toml is the full one, for a log and profile.
+Copy-Item (Join-Path $root "app\hexichd_switch.toml") (Join-Path $sd $(if ($builtin) { "hexichd.toml" } else { "renut.toml" }))
 Copy-Item (Join-Path $dist "renut.toml"), (Join-Path $dist "renut_play.toml"), (Join-Path $dist "renut_ab.toml") (Join-Path $sd "configs")
 Copy-Item (Join-Path $dist "configs\*.toml") (Join-Path $sd "configs")
 $cache = Join-Path $root "out\deko3d_shaders\deko3d_shaders.bin"

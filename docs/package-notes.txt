@@ -1,34 +1,60 @@
 Hexic HD on the Switch: notes for this package
 ==============================================
 
-This has never run on a console. Everything below was tested on the PC and in Ryujinx, so the console will be the first real
-judge of speed, sound and input.
-
 Install
 -------
 1. Copy COPY_TO_SD_switch_hexichd-nx to sdmc:/switch/hexichd-nx/ on the SD card.
 2. Put your extracted game in game_root/ (on this PC: D:\hexic\gamehd), with Title Update 1's default.xexp beside default.xex.
    The package holds no game files.
-3. To use a toml, copy it over hexichd.toml. That is the only toml the NRO reads over its built-in settings. Under any other name
-   a toml does nothing and gives no log.
+
+Your options: hexichd.toml
+--------------------------
+hexichd.toml now holds only language, the face-button layout, the two single Joy-Con keys and [input_p1]. Every other setting is built
+into the NRO. Delete the file and the game writes it again at the next start.
+
+language = "auto" follows the Switch's language. The game has English, Japanese, French, German, Spanish, Italian, Korean, Traditional
+Chinese and Portuguese. A Switch set to Simplified Chinese gets the Traditional text, the game's only Chinese. French was run on the PC
+and in Ryujinx on this NRO; the others were not tried, at your request.
+
+The built-in settings write no logs. For a log and a profile, copy configs/renut.toml over hexichd.toml.
 
 Which toml
 ----------
-configs/renut_play.toml  to play: diagnostics off, no stack sampler, no stall watchdog.
-configs/renut.toml       the package's hexichd.toml: the same settings with logs and the stack sampler on. Use it for a console profile.
-configs/renut_ab.toml    the in-run A/B: 20 targets, 30 s halves (target 1 does nothing, as the control), 20 minutes a round.
-                         Stay on one screen. The log's "[renut A/B]" lines give each target.
+hexichd.toml             to play: the short file above.
+configs/renut_play.toml  the full settings file with diagnostics off.
+configs/renut.toml       the full settings file with logs and the stack sampler on. Use it for a console profile.
+configs/renut_ab.toml    the in-run A/B, 30 s halves, target 1 is the control. Stay on one screen. The log's "[renut A/B]" lines give
+                         each target. This round's new targets come first: 79 object cache, 80 snapshot runs, 83 hot chunks,
+                         81 child read-ahead, 82 value release.
 
-What to test first
-------------------
-1. That it starts and reaches the title. The log's "[boot]" line gives the stages.
-2. Frame rate in play, handheld and docked. This is the main unknown. The game is about 1,180 small Flash draws a frame, so the render
-   thread may be what limits it. Please send the log either way.
-3. Music, by ear. It starts with one song, then plays the eight shuffled. It uses the same player as Hexic 2. No test here has
-   listened to it or measured its output.
-4. Leave the game from the main menu's Xbox Dashboard item. It should exit cleanly, with no rex_crash.log.
-5. Finish a game and restart: your scores and settings should still be there. See "Saves" below.
-6. A long Survival game. See "One crash" below.
+What changed since your first console run
+-----------------------------------------
+Your run measured 46-58 fps, with the main thread at 100 %. So this round is for the main thread.
+- Machine copies: 745 functions, 99 more than the build you ran, picked from your console profile.
+- Hand-written, three functions. Your top game functions are display-list pointer chases, whose time is cache misses, and no rewrite
+  removes a load. So two (sub_9206C070, sub_9206C9F8) read ahead through the children and then run the normal copy, and the third
+  (sub_92055D00) is the release of a Flash value, with the common case done directly. That is three, not the ten you asked for; the
+  others hold critical sections or are mostly misses, which the guide says not to hand-write.
+- The device snapshot taken for each draw compares fewer chunks, see "Hot chunks" below.
+- The render thread's shadow lookup has a small cache.
+None of this has been timed on a console. Your next profile is what judges it.
+
+Hot chunks: the one change that needs your eye
+----------------------------------------------
+The snapshot per draw had 39 chunks. Over six modes (160 million draws) only 8 ever changed within a frame. The build now tests 4 state
+chunks and, if they are unchanged, compares only the 4 that change, except on every 8th draw, when it compares all 39.
+If some state the census never saw does change within a frame, that draw and up to 7 after it use the old state: a brief wrong draw,
+not a crash, and the next full compare corrects it. Nothing like it appeared in Ryujinx with the draw check on (64,488 draws compared, 0
+differ). hexichd_delta_hot_chunks = false in hexichd.toml turns it off. It is on by default, which is your decision to keep or not.
+
+What to test
+------------
+1. Frame rate in play against your 46-58 fps, handheld and docked. Please send the profile (configs/renut.toml) of the same screen.
+2. Music, by ear. It starts with one song, then plays the eight shuffled. On the PC the output is smooth with no silence or clipping
+   (197 s measured), but nobody here has heard it.
+3. Finish a game and restart: your scores and settings should still be there. See "Saves" below.
+4. A long Survival game. See "One crash" below.
+5. Leave from the main menu's Xbox Dashboard item. It should exit cleanly, with no rex_crash.log. This NRO's predecessor did in Ryujinx.
 
 Decisions for you
 -----------------
@@ -38,6 +64,9 @@ the true look, but it changes the picture, so it is yours to decide. Try: config
 
 Other picture options, off: configs/renut_smaa.toml, configs/renut_dynamic.toml, configs/renut_lower_res.toml.
 
+To use one of these, copy it over hexichd.toml. It replaces the short file, so language and input go back to their defaults unless you
+add them.
+
 The picture
 -----------
 The game draws 1280x720. This package draws it at 1280x720 handheld and 1920x1080 docked, with nothing trimmed.
@@ -46,14 +75,13 @@ so it is not a reference for those bitmaps.
 
 What was tested, and what was not
 ---------------------------------
+This exact NRO, in Ryujinx with the short hexichd.toml: starts, French, menus, tutorial, no crash, for about 2 minutes. No draw or copy
+check ran on this exact build; the build before it did (see below).
 Tested on the PC (Renut on Vulkan): menus, Marathon, Timed, Survival, options, tutorial, the leaderboards screen.
-Tested in Ryujinx (deko3d): handheld and docked gameplay and clean exit with every verify key at zero differences, on the build before the
-last optimisation round. This exact NRO, in Ryujinx with the shipped settings: logo, menus, gameplay and the coloured hexagons draw with no
-crash, and leaving from the Dashboard item exits cleanly, with no rex_crash.log. The verify keys have not been run on this exact NRO.
 
 Leaderboards shows the game's sign-in message. Achievements calls a stub, so no list appears. There is no Xbox Live here.
 
-Not tested: anything on a console; music by ear; two-player play; the A/B list's flips on this game.
+Not tested: music by ear; two-player play; docked on the console beyond your first run.
 
 Saves
 -----
@@ -68,33 +96,34 @@ crash was not reproduced before the change, so its cause is not proven. If rex_c
 
 How to turn on a console profile
 --------------------------------
-1. Copy configs/renut.toml over hexichd.toml (a fresh package already has it there). switch_profile_stacks = true is in it.
+1. Copy configs/renut.toml over hexichd.toml. switch_profile_stacks = true is in it.
 2. Play for a few minutes, the stretch you want measured.
 3. Send back rex_profile.log and logs/renut_001.log. The profile's first lines should say "Stack sampling: active".
    hexichd-nx.elf in this package maps its addresses to source lines: keep it with the log.
-The sampler costs some speed, so judge how the game plays with renut_play.toml.
+The sampler costs some speed, so judge how the game plays with the short hexichd.toml.
 
 If something misbehaves
 -----------------------
-banjo_cpu_native_bulk = false in hexichd.toml turns off all the machine copies. If a crash goes away with that key off, the copies
-are the place to look. banjo_spin_yield = false takes out the yield in the audio mixer's spin loops.
-
-Built-in settings against the shipped toml
-------------------------------------------
-Of the shipped toml's 244 keys, 235 match what the NRO uses without it. The other 9 are all logging and diagnostics, on in the toml
-and off built in: banjo_renut_diag_gpu_shaders, banjo_renut_diag_resolve_trace, banjo_renut_diag_terrain, banjo_shader_misses,
-banjo_stall_watch_seconds, log_file_writer, log_level, renut_gpu_profile, switch_profile_stacks.
-Runs with the full toml therefore never exercised those 9 at their built-in values. configs/renut_play.toml turns the same
-diagnostics off, so playing with it is the closest to the built-in settings.
+These go in hexichd.toml, each on its own line, above the first [section]:
+banjo_cpu_native_bulk = false            all the machine copies off. If a crash goes away, the copies are the place to look.
+hexichd_delta_hot_chunks = false         the snapshot compares all 39 chunks again.
+hexichd_hand_value_release = false       the hand-written value release off.
+hexichd_hand_child_prefetch = false      the two read-aheads off.
+hexichd_object_cache = false             the shadow lookup's cache off.
+banjo_spin_yield = false                 the yield in the audio mixer's spin loops out.
 
 What the code rests on
 ----------------------
-646 machine copies are on. Six every-call PC runs through the modes and menus compared 378 million calls with the generated code: 0
-differences, and every copy was reached and compared. The first list had 1,897; the other 1,251 proved nothing and were cut.
+745 machine copies are on. Three every-call PC runs of the 745 list compared 131.6 million calls with the generated code: 0 differences.
+641 of the copies were reached and compared in those runs. 98 were sampled on your console but never compared, because their calls are not
+comparable, and 6 were not reached in those runs. They stay on because your profile asked for them; turning the bulk key off is the check.
+Before that, the 646 list had 378 million calls compared with 0 differences, every copy compared.
+
+The hand-written natives are ARM code, so the PC guard does not see them. The ARM guard in Ryujinx compared 650,726 calls with 0
+differences on the build before this one, with the A/B targets flipping.
 
 This build has every post-codegen step that applies: indirect calls promoted at 67 sites, and locals, the r1 mirror and link-register
-write-backs chosen per function from the compiled ARM code. The hot-placement lists were skipped so you could have this sooner. The same
-PC runs checked these steps as they ran: 0 differences. Their benefit here is only static instruction costs, not timed on any machine.
+write-backs chosen per function from the compiled ARM code. Their benefit is measured only in static instruction costs (locals -7.7 %,
+r1 -0.7 %, link register -3.5 %), not timed on any machine. The hot-placement lists have not been applied.
 
-The profile samples came from Ryujinx and the PC, so no function is hand-written. Send a console profile and the hot functions get
-their own work. PGO + LTO has not been run. It waits for your say, as you asked.
+PGO + LTO has not been run. It waits for your say, as you asked.
