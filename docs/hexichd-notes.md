@@ -64,6 +64,42 @@ So **the emulated GPU is not a safe reference for this game's masked bitmaps, in
 
 Flash's colour table, also from that work: `sub_9209B100` keeps up to 1024 de-duplicated colours in a 1024x1 texture, `sub_9209AF80` reads an entry on the CPU and writes it inline to pixel shader constant c2 at `device+6048`.
 
+## Census (banjo-nx's porting guide, section 2)
+
+From `out/emu_runs/emu_census`, deko3d in Ryujinx:
+
+| What the guide asks | This game |
+|---|---|
+| Where draws come from | Direct calls, about 1,180 draws a frame in gameplay. No recorded command buffers |
+| Indexed | 0 %: quad lists through the game's own vertex buffers, with `DrawVertices`. `DrawIndexedVerticesUP` once, `SetIndices` not linked |
+| Whole buffers | 1.9 % of draws. Most come from ranges of a few large buffers, unlike Hexic 2's 96 % |
+| Fast path | 99.4 % replayed, 0.3 % with no state change (Flash changes a texture or constant for nearly every shape) |
+| Texture slots | 95.8 % answered by the memo |
+| Shaders | 15: 2 vertex and 10 pixel containers (version `0x0E`) in the image, 1 vertex and 2 pixel assembled at run time. 15 compiled, 0 failed |
+| Masks | Stencil, incremented and decremented around each mask, with colour writes off |
+| Render size | 1280x720 at 4x MSAA in 3 tiles of 256, 256 and 208 lines. Handheld is 1x, docked 1.5x (1920x1080), with nothing trimmed |
+
+## What rr6-nx's fixes mean here
+
+Taken with its renderer, each checked against this game: `hexichd_alpha_near_one` does nothing, as colour control `0x87000007` has the alpha test at always. `hexichd_user_clip_plane` has no game caller: `SetClipPlane`'s one caller is the library's own `sub_920B8A98`. `hexichd_strip_markers` does nothing, as nothing here is indexed. `hexichd_fog_nan_zero` is off the path too, by reading: the game's constants come from Flash's transforms, and no NaN was logged in c21 or c22. `hexichd_fetch_over_pointer` matches the hardware (a null `SetTexture` leaves the fetch constant). `hexichd_depth_covers_colour` matters here in principle, since the surfaces are tile-sized, and logged no case.
+
+## The game's gamma ramp: for the user's decision
+
+The XDK loads its default ramp at the first `Swap` (`sub_920C1128`, called from `sub_920B4E10`), through `sub_920B88B0` or `sub_920B8940` by the back buffer's format. On Renut that function does not run: its device stores the corrected ramp at creation, `[64]=193 [128]=462 [255]=1023`, and `banjo_renut_game_gamma` applies it at scan-out.
+
+Measured on the static panels against the emulated GPU (`out/pc_runs/gamma_on`, `gamma_off`, `ref_d3d12_rov`). The panels do not move, so pixels can be compared directly:
+
+| Point | Off | **On** | Emulated GPU |
+|---|---|---|---|
+| (200, 300) | 22, 18, 54 | 9, 7, 38 | 9, 7, 38 |
+| (200, 600) | 53, 50, 84 | 37, 34, 69 | 37, 34, 69 |
+| (1060, 60) | 220, 223, 228 | 216, 219, 225 | 216, 219, 225 |
+| (1060, 300) | 176, 177, 193 | 167, 168, 186 | 167, 168, 186 |
+| (1060, 500) | 116, 115, 145 | 102, 101, 133 | 102, 101, 133 |
+| (1060, 650) | 72, 70, 104 | 56, 54, 90 | 56, 54, 90 |
+
+On, every sampled point is exact. Off, darks are up to 16 levels too bright. It changes the picture, so **the default stays off** and `configs/renut_game_gamma.toml` turns it on: the user's decision.
+
 ## Open items
 
 See `docs/progress-log.md`.
