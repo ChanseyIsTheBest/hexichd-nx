@@ -65,6 +65,8 @@ REXCVAR_DEFINE_BOOL(input_xbox_layout, true, "Input",
   REXCVAR_DEFINE_STRING(input_##P##_right, "", "Input", WHO ": Switch buttons for D-pad right (default RIGHT)")
 REX_INPUT_MAP_CVARS(p1, "Player 1");
 REX_INPUT_MAP_CVARS(p2, "Player 2");
+REX_INPUT_MAP_CVARS(p3, "Player 3");  // peggle1-nx: each player has their own map
+REX_INPUT_MAP_CVARS(p4, "Player 4");
 #undef REX_INPUT_MAP_CVARS
 
 // Single Joy-Cons (one per player, for multiplayer) are held sideways: the system is told so (it then turns the
@@ -117,7 +119,7 @@ struct ButtonTable {
   std::array<uint64_t, 16> buttons{};  // per XInput button bit (X_INPUT_GAMEPAD_*: bit i)
   uint64_t left_trigger = 0, right_trigger = 0;
 };
-std::array<std::array<ButtonTable, 2>, 2> g_tables;  // [player 1 / 2][0 by letter, 1 by position]
+std::array<std::array<ButtonTable, 2>, 4> g_tables;  // [player 1 to 4][0 by letter, 1 by position]
 
 constexpr int BitIndex(uint16_t bit) { return std::countr_zero(bit); }
 
@@ -220,7 +222,8 @@ void BuildButtonTables() {
     {"input_" #P "_left", REXCVAR_GET(input_##P##_left), BitIndex(X_INPUT_GAMEPAD_DPAD_LEFT)},    \
     {"input_" #P "_right", REXCVAR_GET(input_##P##_right), BitIndex(X_INPUT_GAMEPAD_DPAD_RIGHT)}, \
   }
-  const Override overrides[2][16] = {REX_INPUT_OVERRIDES(p1), REX_INPUT_OVERRIDES(p2)};
+  const Override overrides[4][16] = {REX_INPUT_OVERRIDES(p1), REX_INPUT_OVERRIDES(p2), REX_INPUT_OVERRIDES(p3),
+                                     REX_INPUT_OVERRIDES(p4)};
 #undef REX_INPUT_OVERRIDES
   for (size_t player = 0; player < g_tables.size(); ++player) {
     for (const Override& o : overrides[player]) {
@@ -613,7 +616,8 @@ void SwitchInputDriver::Poll(size_t index) {
   }
   DispatchMenuShortcuts(slot, held);
   X_INPUT_GAMEPAD gamepad{};
-  const ButtonTable& table = g_tables[slot.ordinal == 1 ? 1 : 0][REXCVAR_GET(input_xbox_layout) ? 1 : 0];
+  const ButtonTable& table = g_tables[slot.ordinal < g_tables.size() ? slot.ordinal : 0]
+                                     [REXCVAR_GET(input_xbox_layout) ? 1 : 0];
   uint16_t buttons = 0;
   for (int i = 0; i < 16; ++i) {
     if (held & table.buttons[i]) {

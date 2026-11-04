@@ -142,6 +142,10 @@ bool RexGmFaultIn(uint64_t window_address);
  *
  * If out_old is not NULL, it receives the previous permissions.
  */
+/* Zero a range through the committed chunks' RW aliases, leaving view protections alone (peggle1-nx, from peggle2-nx: decommit and
+ * release semantics, see memory_switch.cpp). */
+bool RexGmZero(size_t offset, size_t length);
+
 bool RexGmProtect(uint8_t* address, size_t length, RexGmAccess access, RexGmAccess* out_old);
 
 /* Queries the logical permissions. length receives the size of the uniform range. */

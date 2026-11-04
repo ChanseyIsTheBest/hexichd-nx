@@ -560,7 +560,9 @@ object_ref<XThread> KernelState::PrepareModuleLaunch(object_ref<UserModule> modu
   // Create a thread to run in.
   // We start suspended so the caller can inspect/attach before resume.
   auto thread = object_ref<XThread>(new XThread(
-      this, module->stack_size(), 0, module->entry_point(), 0, X_CREATE_SUSPENDED, true, true));
+      // hexichd-nx (2026-11-04): at least 1 MB. Hexic HD's XEX asks for 64 KB and its Flash interpreter runs on this thread: one scripted session wrote just
+      // below the stack (guest 0x700CFFF0, sub_920ABAE0, a 1,328-byte frame). A larger stack changes nothing for a thread that fits.
+      this, std::max<uint32_t>(module->stack_size(), 1024 * 1024), 0, module->entry_point(), 0, X_CREATE_SUSPENDED, true, true));
 
   // We know this is the 'main thread'.
   thread->set_name("Main XThread");
