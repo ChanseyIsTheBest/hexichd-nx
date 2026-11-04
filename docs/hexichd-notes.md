@@ -135,3 +135,34 @@ peggle1-nx's `sdk/` compared file by file with this tree's (read-only; its histo
 - The asset pack (`pack_device`): a feature, not a fix. It changes the install and builds a pack at first boot.
 - `vblank_per_swap`, `clock_per_swap_hz`, `io_diag_crc`, `input_diag_users`, the muted audio dump, `DescribeHostCode`: diagnostics.
 - `setjmp_save_locals`, `lr_keep_returns`, `lr_keep_callees`: generator options for particular games, off unless asked for.
+
+## Every post-codegen step (2026-11-04, the user's request)
+
+The steps in `tools/post_codegen.py` that read a list had empty ones, carried over empty from the base because the lists were per game. An empty list does not mean "off" everywhere: `tools/r1_local.py` took it as every function, which measured as a loss here too.
+
+| Step | Before | Now | How it was chosen |
+|---|---|---|---|
+| Promoted indirect calls (`indirect_calls.py`) | 0 | 67 sites, whose guards catch 59 % of the census's calls | `banjo_diag_indirect_census` in three PC runs (Marathon, Survival, the options), `tools/indirect_promotions.py`. 378 M calls counted |
+| Loop and leaf locals (`locals_optout.txt`) | on everywhere | off in 32 functions | `tools/form_choice.py`. Static cost, on everywhere -7.12 %, with the choice -7.71 % |
+| r1 as a local (`r1_local_choice.json`) | on everywhere: **+0.41 %, a loss** | on in 1,360 functions | The same. With the choice -0.73 % |
+| Dropped link-register write-backs (`lr_write_same_choice.json`) | none | 1,430 functions, 1,483 sites | The same. All proven sites -2.82 %, with the choice -3.52 % |
+| Threaded dispatch (`switch_goto.py`) | Katamari's names, so nothing | 5 functions, 38 dispatch copies | `tools/switch_census.py`: dispatch loops that have no machine copy |
+| Hot placement and hot leaf copies (`hot_layout.py`, `inline_leaves.py --hot`) | none | see below | `tools/hot_lists.py`, from Ryujinx samples |
+
+The costs are `tools/locals_choice.py`'s static cost of the compiled A57 code, weighted for loops and memory, over the functions each step touches. They are not run times.
+
+`tools/form_choice.py` is new. Banjo made these lists with scratch scripts that never became tools. It compiles each generated file four times with the Switch build's own command line (all on, then each step's own switch-back) and compares function by function. It took 9 minutes for this game's 34 files.
+
+**Interpreters.** There is no hot bytecode interpreter here, Flash or otherwise. The busiest switches (`sub_92055F00` at 10.9 M calls, `sub_92062848` at 9.7 M) run once per call with no loop back, and threading gains nothing there. The real dispatch loops are cold (`sub_9207F8B8` at 3,084 calls, the others at 0 in those runs). Threaded dispatch is on for them, as asked, but expect nothing from it.
+
+**Not on, and why:**
+
+- `frame_traffic.py`'s three elisions: not exact. sa2-nx found a game reading a stack word it never wrote.
+- `limiter_lazy_log10.py`: no limiter to apply it to. The only callers of log10 (`sub_92212DA0`) are two small wrappers, `sub_92212FC0` and `sub_92212FC8`.
+- `thunk_calls.py` (sasrt-nx): this game has no jump thunks of that shape.
+- `poll_waits.py` (halo3-nx): its addresses are Halo's. `tools/spin_yield.py` is the same idea for `db16cyc`, already on.
+- LTO and PGO: your say, as you asked.
+
+**Checked** on the PC: six every-call runs on the regenerated code. 378.0 M calls compared, 120.7 M not comparable, 0 differences. All 646 copies were reached and compared. The generated code's own checks also ran throughout, 0 differences: promoted calls 72.5 M, r1 mirror 217.2 M, dropped write-backs 191.1 M.
+
+The copy list went from 1,897 to 646: the first six runs compared 646 of them, and the other 1,251 proved nothing (1,250 reached and never compared, 1 never reached). Any that a profile samples return through `--merge`.
